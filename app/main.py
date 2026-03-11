@@ -1,6 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from app.config import settings
 from app.database import init_db
 from app.middleware.logging import LoggingMiddleware
@@ -32,25 +32,32 @@ async def startup():
     await init_db()
 
 
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    html_path = os.path.join(os.path.dirname(__file__), "../static/index.html")
+def read_static_html(filename: str) -> str:
+    html_path = os.path.join(os.path.dirname(__file__), "../static", filename)
     if os.path.exists(html_path):
         with open(html_path, "r", encoding="utf-8") as f:
             return f.read()
-    return """
-    <html>
-        <head><title>Ai-TuShare</title></head>
-        <body>
-            <h1>Ai-TuShare 股票数据API服务</h1>
-            <p>服务运行中...</p>
-            <ul>
-                <li><a href="/docs">API文档</a></li>
-                <li><a href="/static/index.html">看板</a></li>
-            </ul>
-        </body>
-    </html>
-    """
+    return f"<html><body><h1>404 - {filename} not found</h1></body></html>"
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    return read_static_html("index.html")
+
+
+@app.get("/api-tester", response_class=HTMLResponse)
+async def api_tester():
+    return read_static_html("api-tester.html")
+
+
+@app.get("/api-stats", response_class=HTMLResponse)
+async def api_stats():
+    return read_static_html("api-stats.html")
+
+
+@app.get("/ai-docs", response_class=HTMLResponse)
+async def ai_docs():
+    return read_static_html("ai-docs.json")
 
 
 if __name__ == "__main__":

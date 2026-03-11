@@ -1,0 +1,363 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Ai-TuShare 股票数据API服务",
+    "description": "基于Tushare Pro的股票数据API服务，提供股票基础信息和技术指标接口。AI可直接读取此文档了解如何调用。",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Ai-TuShare",
+      "url": "https://tushare.pro"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "本地开发服务器"
+    }
+  ],
+  "paths": {
+    "/api/v1/stock/list": {
+      "get": {
+        "tags": ["股票基础信息"],
+        "summary": "获取股票列表",
+        "description": "获取股票列表，支持按交易所、上市状态筛选。积分要求：基础接口，默认开放。",
+        "parameters": [
+          {
+            "name": "exchange",
+            "in": "query",
+            "description": "交易所: SSE(上交所) / SZSE(深交所) / BSE(北交所)",
+            "schema": {"type": "string", "enum": ["SSE", "SZSE", "BSE"]}
+          },
+          {
+            "name": "list_status",
+            "in": "query",
+            "description": "上市状态: L(上市) / D(退市) / P(暂停)",
+            "schema": {"type": "string", "enum": ["L", "D", "P"], "default": "L"}
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "description": "返回字段，逗号分隔，如: ts_code,name,area,industry",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回股票列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {"type": "integer", "description": "0表示成功"},
+                    "data": {"type": "array", "description": "股票数据列表"},
+                    "total": {"type": "integer", "description": "总数量"}
+                  }
+                },
+                "example": {
+                  "code": 0,
+                  "data": [{"ts_code": "000001.SZ", "name": "平安银行", "area": "深圳", "industry": "银行"}],
+                  "total": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stock/daily": {
+      "get": {
+        "tags": ["股票基础信息"],
+        "summary": "获取日线行情",
+        "description": "获取股票日线行情数据。积分要求：基础接口，默认开放。",
+        "parameters": [
+          {
+            "name": "ts_code",
+            "in": "query",
+            "description": "股票代码(必需)，格式: 000001.SZ 或 600000.SH",
+            "required": true,
+            "schema": {"type": "string", "example": "000001.SZ"}
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "开始日期，格式: YYYYMMDD",
+            "schema": {"type": "string", "example": "20250101"}
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "结束日期，格式: YYYYMMDD",
+            "schema": {"type": "string", "example": "20250110"}
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "description": "返回字段",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回日线数据",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "data": [{"ts_code": "000001.SZ", "trade_date": "20250110", "open": 12.50, "high": 12.80, "low": 12.40, "close": 12.70, "vol": 1000000, "amount": 127000000}],
+                  "total": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stock/trade_cal": {
+      "get": {
+        "tags": ["股票基础信息"],
+        "summary": "获取交易日历",
+        "description": "获取指定交易所的交易日历。积分要求：基础接口，默认开放。",
+        "parameters": [
+          {
+            "name": "exchange",
+            "in": "query",
+            "description": "交易所代码",
+            "schema": {"type": "string", "enum": ["SSE", "SZSE", "BSE"], "default": "SSE"}
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "开始日期 YYYYMMDD",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "结束日期 YYYYMMDD",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回交易日历",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "data": [{"exchange": "SSE", "cal_date": "20250110", "is_open": 1, "pretrade_date": "20250109"}],
+                  "total": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/indicators/daily_basic": {
+      "get": {
+        "tags": ["技术指标"],
+        "summary": "获取每日基本面指标",
+        "description": "获取每日基本面指标，包含收盘价、换手率、量比、市盈率、市净率、市销率、股息率等。积分要求：基础接口，默认开放。",
+        "parameters": [
+          {
+            "name": "ts_code",
+            "in": "query",
+            "description": "股票代码",
+            "schema": {"type": "string", "example": "000001.SZ"}
+          },
+          {
+            "name": "trade_date",
+            "in": "query",
+            "description": "交易日期 YYYYMMDD",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "开始日期 YYYYMMDD",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "结束日期 YYYYMMDD",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "description": "返回字段",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回基本面数据",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "data": [{"ts_code": "000001.SZ", "trade_date": "20250110", "close": 12.70, "turnover_rate": 2.5, "volume_ratio": 1.2, "pe": 8.5, "pb": 1.2, "total_share": 1000000, "float_share": 800000, "total_mv": 12700000, "circ_mv": 10160000}],
+                  "total": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/indicators/factors": {
+      "get": {
+        "tags": ["技术指标"],
+        "summary": "获取技术面因子",
+        "description": "获取技术面因子数据，包含MACD、KDJ、RSI、布林带、ATR、DMI、CCI、BBI、OBV等大量技术指标。**积分要求：5000积分每分钟30次，8000积分以上每分钟500次**。",
+        "parameters": [
+          {
+            "name": "ts_code",
+            "in": "query",
+            "description": "股票代码(必需)，格式: 000001.SZ",
+            "required": true,
+            "schema": {"type": "string", "example": "000001.SZ"}
+          },
+          {
+            "name": "trade_date",
+            "in": "query",
+            "description": "交易日期 YYYYMMDD",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "开始日期 YYYYMMDD",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "结束日期 YYYYMMDD",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回技术因子数据",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "data": [{"ts_code": "000001.SZ", "trade_date": "20250110", "macd": 0.5, "macd_dif": 0.3, "macd_dea": 0.2, "kdj_k": 75.5, "kdj_d": 70.2, "kdj_j": 86.1, "rsi_6": 65.0, "rsi_12": 60.0, "boll_upper": 13.5, "boll_mid": 12.8, "boll_lower": 12.1}],
+                  "total": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/logs/list": {
+      "get": {
+        "tags": ["系统管理"],
+        "summary": "获取请求日志列表",
+        "description": "获取API请求日志列表，用于监控和调试。",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码",
+            "schema": {"type": "integer", "default": 1}
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量",
+            "schema": {"type": "integer", "default": 20, "maximum": 100}
+          },
+          {
+            "name": "api_name",
+            "in": "query",
+            "description": "API名称筛选",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "description": "请求方法筛选",
+            "schema": {"type": "string", "enum": ["GET", "POST"]}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回日志列表",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "data": [{"id": 1, "api_name": "stock/list", "method": "GET", "path": "/api/v1/stock/list", "params": "list_status=L", "response_status": 200, "response_time": 125.5, "created_at": "2025-01-10T10:30:00"}],
+                  "total": 100,
+                  "page": 1,
+                  "page_size": 20
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/logs/stats": {
+      "get": {
+        "tags": ["系统管理"],
+        "summary": "获取请求统计",
+        "description": "获取API请求统计数据，包括总请求数、成功率、平均响应时间等。",
+        "responses": {
+          "200": {
+            "description": "成功返回统计数据",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 0,
+                  "data": {
+                    "total_requests": 1000,
+                    "success_requests": 950,
+                    "failed_requests": 50,
+                    "success_rate": 95.0,
+                    "avg_response_time": 156.8,
+                    "top_apis": [{"api_name": "stock/list", "count": 500}, {"api_name": "stock/daily", "count": 300}]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer", "description": "0表示成功，非0表示错误"},
+          "data": {"type": "array", "description": "返回数据"},
+          "total": {"type": "integer", "description": "数据总量"}
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer", "description": "错误码"},
+          "msg": {"type": "string", "description": "错误信息"}
+        }
+      }
+    }
+  },
+  "tags": [
+    {"name": "股票基础信息", "description": "股票列表、行情、交易日历等基础数据接口"},
+    {"name": "技术指标", "description": "基本面指标和技术面因子接口"},
+    {"name": "系统管理", "description": "请求日志和统计接口"}
+  ],
+  "externalDocs": {
+    "description": "Tushare官方文档",
+    "url": "https://tushare.pro/document/2"
+  }
+}

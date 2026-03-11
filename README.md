@@ -128,7 +128,7 @@ GET /api/v1/indicators/factors?ts_code=000001.SZ&start_date=20250101
 在 `app/config.py` 或 `.env` 文件中配置:
 
 ```python
-TUSHARE_TOKEN = "你的token"
+TUSHARE_TOKEN = "1d7aabe519e1f1bf7cbe4e5c4f49fbad70bb3778e0c1a8abf260e183b2c7"
 TUSHARE_URL = "http://lianghua.nanyangqiankun.top"
 DATABASE_URL = "sqlite+aiosqlite:///data/app.db"
 ```

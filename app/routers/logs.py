@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from typing import Optional
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc, func, delete
 from app.database import async_session
 from app.models.log import ApiLog
 
@@ -82,3 +82,13 @@ async def get_stats():
                 "top_apis": api_counts
             }
         }
+
+
+@router.delete("/clear")
+async def clear_logs():
+    async with async_session() as session:
+        delete_stmt = delete(ApiLog)
+        await session.execute(delete_stmt)
+        await session.commit()
+    
+    return {"code": 0, "message": "日志已清空"}

@@ -10,6 +10,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
         
+        path = str(request.url.path)
+        # 只记录 API 请求（/api/v1/*），过滤其他所有请求
+        if not path.startswith("/api/v1/"):
+            response = await call_next(request)
+            return response
+        
         params = None
         if request.method in ["GET", "POST"]:
             try:

@@ -5,15 +5,33 @@ from app.config import settings
 class TushareClient:
     def __init__(self):
         self._pro = None
+        self._initialized = False
     
     @property
     def pro(self):
-        if self._pro is None:
+        if self._pro is None and not self._initialized:
             token = settings.tushare_token or "你的token"
-            self._pro = ts.pro_api(token)
-            self._pro._DataApi__token = token
-            self._pro._DataApi__http_url = settings.tushare_url
+            try:
+                ts.set_token(token)
+                self._pro = ts.pro_api(token)
+                if hasattr(self._pro, '_DataApi'):
+                    self._pro._DataApi__http_url = settings.tushare_url
+                self._initialized = True
+            except Exception as e:
+                print(f"Tushare 初始化失败: {e}")
+                self._initialized = True
         return self._pro
+    
+    def is_valid_token(self):
+        """检查 Token 是否有效"""
+        if self._pro is None:
+            return False
+        try:
+            # 尝试获取用户信息来验证 Token
+            user_info = self._pro.user_info()
+            return user_info is not None and len(user_info) > 0
+        except:
+            return False
     
     def get_stock_basic(self, **kwargs):
         return self.pro.stock_basic(**kwargs)

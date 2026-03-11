@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     app_name: str = "Ai-TuShare 股票数据API服务"
     app_version: str = "1.0.0"
     
-    # Tushare配置
-    tushare_token: str = "1d7aabe519e1f1bf7cbe4e5c4f49fbad70bb3778e0c1a8abf260e183b2c7"
+    # Tushare配置 - 需要替换为有效的 Tushare Token
+    tushare_token: str = "你的TushareToken"
     tushare_url: str = "http://lianghua.nanyangqiankun.top"
     
     # 数据库配置

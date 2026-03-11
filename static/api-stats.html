@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API积分统计 - Ai-TuShare</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* 默认亮色模式 */
+            --bg-primary: #f8fafc;
+            --bg-secondary: #f1f5f9;
+            --bg-tertiary: #e5e7eb;
+            --bg-card: #ffffff;
+            --border-color: #d1d5db;
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --text-muted: #6b7280;
+            --accent-cyan: #0284c7;
+            --accent-green: #059669;
+            --accent-orange: #d97706;
+            --accent-red: #dc2626;
+            --accent-purple: #7c3aed;
+            --accent-gradient: linear-gradient(135deg, #0284c7 0%, #059669 100%);
+        }
+
+        /* 暗黑模式 */
+        .dark-mode {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-tertiary: #1a2234;
+            --bg-card: #151d2e;
+            --border-color: #2a3548;
+            --text-primary: #f0f4f8;
+            --text-secondary: #8892a4;
+            --text-muted: #5c6577;
+            --accent-cyan: #00d4ff;
+            --accent-green: #00ff88;
+            --accent-orange: #ff9500;
+            --accent-red: #ff4757;
+            --accent-purple: #a855f7;
+            --accent-gradient: linear-gradient(135deg, #00d4ff 0%, #00ff88 100%);
+        }
+
+         * { margin: 0; padding: 0; box-sizing: border-box; }
+
+         body {
+             font-family: 'Outfit', sans-serif;
+             background: var(--bg-primary);
+             color: var(--text-primary);
+             min-height: 100vh;
+         }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .dark-mode body::before {
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(0, 212, 255, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.06) 0%, transparent 40%);
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-inner {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            background: var(--accent-gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-link {
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: var(--bg-tertiary);
+            color: var(--accent-cyan);
+            border: 1px solid var(--border-color);
+        }
+
+        .main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-subtitle {
+            color: var(--text-muted);
+            margin-bottom: 32px;
+        }
+
+        .section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .info-box {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .info-box h3 {
+            font-size: 16px;
+            color: var(--accent-cyan);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-box p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .info-box a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+        }
+
+        .info-box a:hover {
+            text-decoration: underline;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        td {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        tr:hover td {
+            background: var(--bg-tertiary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .api-name {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-cyan);
+            font-weight: 500;
+        }
+
+        .api-path {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-free {
+            background: rgba(0, 255, 136, 0.15);
+            color: var(--accent-green);
+        }
+
+        .badge-pro {
+            background: rgba(255, 149, 0, 0.15);
+            color: var(--accent-orange);
+        }
+
+        .badge-vip {
+            background: rgba(168, 85, 247, 0.15);
+            color: var(--accent-purple);
+        }
+
+        .badge-high {
+            background: rgba(255, 71, 87, 0.15);
+            color: var(--accent-red);
+        }
+
+        .rate-info {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .field-list {
+            font-size: 12px;
+            color: var(--text-muted);
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-muted);
+            font-size: 13px;
+            border-top: 1px solid var(--border-color);
+            margin-top: 32px;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <a href="/" class="logo">
+                <div class="logo-icon">📈</div>
+                <div class="logo-text">Ai-TuShare</div>
+            </a>
+            <nav class="nav">
+                <a href="/" class="nav-link">🏠 看板</a>
+                <a href="/api-tester" class="nav-link">🧪 API测试</a>
+                <a href="/docs" class="nav-link">📚 接口文档</a>
+                <a href="/ai-docs" class="nav-link">🤖 AI文档</a>
+                <a href="/api-stats" class="nav-link active">📊 积分统计</a>
+                <button id="themeToggle" class="nav-link" style="border: none; background: none; cursor: pointer;">🌙</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <h1 class="page-title animate-in">📊 API积分与权限统计</h1>
+        <p class="page-subtitle animate-in">Tushare数据接口积分要求与调用限制说明</p>
+
+        <div class="info-box animate-in delay-1">
+            <h3>ℹ️ 积分说明</h3>
+            <p>
+                • <strong>免费接口</strong>：基础数据接口，无需积分即可使用<br>
+                • <strong>专业版接口</strong>：需要积分才能调用，具体要求见下表<br>
+                • <strong>调用频率</strong>：专业版接口有每分钟请求次数限制<br>
+                • <strong>单独申请</strong>：部分高频接口需要单独申请权限<br>
+                • 积分详情请参考 <a href="https://tushare.pro/document/1?doc_id=13" target="_blank">Tushare积分获取办法</a><br>
+                • 数据接口文档：<a href="https://tushare.pro/document/2" target="_blank">https://tushare.pro/document/2</a>
+            </p>
+        </div>
+
+        <div class="section animate-in delay-1">
+            <h2 class="section-title">🚀 股票策略MVP接口优先级</h2>
+            <p class="section-subtitle">按照最小可行性产品(MVP)开发优先级排序，建议按此顺序获取积分</p>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>优先级</th>
+                            <th>接口类型</th>
+                            <th>API名称</th>
+                            <th>积分要求</th>
+                            <th>用途说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-purple">P0</span></td>
+                            <td>基础数据</td>
+                            <td>
+                                <div class="api-name">股票列表</div>
+                                <div class="api-path">stock/list</div>
+                            </td>
+                            <td><span class="badge badge-free">免费</span></td>
+                            <td>获取所有股票代码和基本信息，策略选股的基础</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-purple">P0</span></td>
+                            <td>基础数据</td>
+                            <td>
+                                <div class="api-name">交易日历</div>
+                                <div class="api-path">stock/trade_cal</div>
+                            </td>
+                            <td><span class="badge badge-free">免费</span></td>
+                            <td>判断交易日，避免非交易日操作</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-cyan">P1</span></td>
+                            <td>行情数据</td>
+                            <td>
+                                <div class="api-name">日线行情</div>
+                                <div class="api-path">stock/daily</div>
+                            </td>
+                            <td><span class="badge badge-pro">120积分起</span></td>
+                            <td>获取历史价格数据，技术分析的基础</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-cyan">P1</span></td>
+                            <td>财务数据</td>
+                            <td>
+                                <div class="api-name">每日基本面</div>
+                                <div class="api-path">indicators/daily_basic</div>
+                            </td>
+                            <td><span class="badge badge-pro">2000积分起</span></td>
+                            <td>获取PE、PB、换手率等基本面指标</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-orange">P2</span></td>
+                            <td>技术指标</td>
+                            <td>
+                                <div class="api-name">技术面因子</div>
+                                <div class="api-path">indicators/factors</div>
+                            </td>
+                            <td><span class="badge badge-vip">5000积分起</span></td>
+                            <td>MACD、KDJ、RSI等技术指标，量化策略核心</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-orange">P2</span></td>
+                            <td>财务数据</td>
+                            <td>
+                                <div class="api-name">利润表</div>
+                                <div class="api-path">stock/income</div>
+                            </td>
+                            <td><span class="badge badge-pro">2000积分起</span></td>
+                            <td>公司盈利能力分析</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-orange">P2</span></td>
+                            <td>财务数据</td>
+                            <td>
+                                <div class="api-name">资产负债表</div>
+                                <div class="api-path">stock/balance</div>
+                            </td>
+                            <td><span class="badge badge-pro">2000积分起</span></td>
+                            <td>公司财务健康状况分析</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section animate-in delay-1">
+            <h2 class="section-title">⏱️ 独立权限接口（分钟级别等）</h2>
+            <p class="section-subtitle">分钟数据、港美股等需要单独开通权限，不包含在积分范围内</p>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>类型</th>
+                            <th>包含数据</th>
+                            <th>历史起始</th>
+                            <th>费用</th>
+                            <th>频次</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>股票历史分钟</td>
+                            <td>1、5、15、30、60分钟</td>
+                            <td>2009年</td>
+                            <td><span class="badge badge-pro">2000元/年</span></td>
+                            <td>每分钟500次，每次8000行</td>
+                        </tr>
+                        <tr>
+                            <td>股票实时分钟</td>
+                            <td>1、5、15、30、60分钟</td>
+                            <td>实时</td>
+                            <td><span class="badge badge-pro">1000元/月</span></td>
+                            <td>每分钟500次，单次300股票</td>
+                        </tr>
+                        <tr>
+                            <td>股票实时日线</td>
+                            <td>当日实时日线成交</td>
+                            <td>每天9点半开始</td>
+                            <td><span class="badge badge-pro">200元/月</span></td>
+                            <td>每分钟50次，全市场</td>
+                        </tr>
+                        <tr>
+                            <td>期货历史分钟</td>
+                            <td>1、5、15、30、60分钟</td>
+                            <td>2010年</td>
+                            <td><span class="badge badge-pro">2000元/年</span></td>
+                            <td>每分钟500次，每次8000行</td>
+                        </tr>
+                        <tr>
+                            <td>港股日线</td>
+                            <td>日线、复权行情</td>
+                            <td>全历史</td>
+                            <td><span class="badge badge-pro">1000元/年</span></td>
+                            <td>每分钟500次，每次6000行</td>
+                        </tr>
+                        <tr>
+                            <td>港股分钟</td>
+                            <td>分钟数据</td>
+                            <td>2015年</td>
+                            <td><span class="badge badge-pro">2000元/年</span></td>
+                            <td>每分钟500次，每次8000行</td>
+                        </tr>
+                        <tr>
+                            <td>美股日线</td>
+                            <td>日线、估值指标、换手率</td>
+                            <td>全股票全历史</td>
+                            <td><span class="badge badge-pro">2000元/年</span></td>
+                            <td>每分钟500次，每次8000行</td>
+                        </tr>
+                        <tr>
+                            <td>新闻资讯</td>
+                            <td>快讯、长篇新闻、新闻联播</td>
+                            <td>3年以上</td>
+                            <td><span class="badge badge-pro">1000元/年</span></td>
+                            <td>每分钟400次</td>
+                        </tr>
+                        <tr>
+                            <td>公告信息</td>
+                            <td>股票、基金、固收公告</td>
+                            <td>10年以上</td>
+                            <td><span class="badge badge-pro">1000元/年</span></td>
+                            <td>每分钟500次</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="margin-top: 16px; color: var(--text-muted); font-size: 13px;">
+                💡 <strong>提示：</strong> 以上费用为个人标准，公司机构费用为10倍。详细信息请参考 
+                <a href="https://tushare.pro/document/1?doc_id=290" target="_blank" style="color: var(--accent-cyan);">积分频次对应表</a>
+            </p>
+        </div>
+
+        <div class="section animate-in delay-1">
+            <h2 class="section-title">📊 Tushare官方积分要求（参考）</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>数据类别</th>
+                            <th>API名称</th>
+                            <th>最低积分</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td rowspan="5">股票数据</td>
+                            <td>日线行情 (daily)</td>
+                            <td>120起</td>
+                            <td>全部历史，交易日每日15点～17点更新</td>
+                        </tr>
+                        <tr>
+                            <td>周线行情 (weekly)</td>
+                            <td>2000</td>
+                            <td>全部历史，每周五更新</td>
+                        </tr>
+                        <tr>
+                            <td>月线行情 (monthly)</td>
+                            <td>2000</td>
+                            <td>全部历史，每月更新</td>
+                        </tr>
+                        <tr>
+                            <td>每日指标数据 (daily_basic)</td>
+                            <td>2000起</td>
+                            <td>交易日每日更新</td>
+                        </tr>
+                        <tr>
+                            <td>IPO新股列表 (new_share)</td>
+                            <td>120</td>
+                            <td>每日19点更新</td>
+                        </tr>
+                        <tr>
+                            <td rowspan="3">财务数据</td>
+                            <td>利润表 (income)</td>
+                            <td>2000起</td>
+                            <td>全部历史，实时更新</td>
+                        </tr>
+                        <tr>
+                            <td>资产负债表 (balancesheet)</td>
+                            <td>2000起</td>
+                            <td>全部历史，实时更新</td>
+                        </tr>
+                        <tr>
+                            <td>现金流量表 (cashflow)</td>
+                            <td>2000起</td>
+                            <td>全部历史，实时更新</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="margin-top: 16px; color: var(--text-secondary); font-size: 14px;">
+                💡 <strong>提示：</strong> 以上为Tushare官方最低积分要求，实际调用频次与积分等级相关。
+                详细信息请参考 <a href="https://tushare.pro/document/1?doc_id=108" target="_blank" style="color: var(--accent-cyan);">Tushare数据更新说明</a>
+            </p>
+        </div>
+
+        <div class="section animate-in delay-1">
+            <h2 class="section-title">🔢 积分等级与权限</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>积分等级</th>
+                            <th>积分要求</th>
+                            <th>每分钟调用次数</th>
+                            <th>可用数据范围</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-free">免费用户</span></td>
+                            <td class="rate-info">0</td>
+                            <td class="rate-info">基础接口无限制</td>
+                            <td>基础股票数据、行情、财务等</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-pro">专业版</span></td>
+                            <td class="rate-info">5000+</td>
+                            <td class="rate-info">30次/分钟</td>
+                            <td>全部免费数据 + 技术因子等</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-vip">高级专业版</span></td>
+                            <td class="rate-info">8000+</td>
+                            <td class="rate-info">500次/分钟</td>
+                            <td>全部数据 + 高频调用权限</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-high">机构版</span></td>
+                            <td class="rate-info">20000+</td>
+                            <td class="rate-info">无限制</td>
+                            <td>全部数据 + 定制数据</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section animate-in delay-1">
+            <h2 class="section-title">📦 技术面因子输出字段</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>类别</th>
+                            <th>字段名称</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>基础行情</td>
+                            <td><code>open, high, low, close, vol, amount</code></td>
+                            <td>开盘价、最高价、最低价、收盘价、成交量、成交额</td>
+                        </tr>
+                        <tr>
+                            <td>复权价格</td>
+                            <td><code>open_qfq, close_qfq, open_hfq, close_hfq</code></td>
+                            <td>前复权和后复权价格</td>
+                        </tr>
+                        <tr>
+                            <td>换手率</td>
+                            <td><code>turnover_rate, turnover_rate_f</code></td>
+                            <td>换手率、自由流通股换手率</td>
+                        </tr>
+                        <tr>
+                            <td>估值指标</td>
+                            <td><code>pe, pe_ttm, pb, ps, ps_ttm</code></td>
+                            <td>市盈率、市净率、市销率</td>
+                        </tr>
+                        <tr>
+                            <td>市值指标</td>
+                            <td><code>total_mv, circ_mv, total_share, float_share</code></td>
+                            <td>总市值、流通市值、总股本、流通股本</td>
+                        </tr>
+                        <tr>
+                            <td>MACD</td>
+                            <td><code>macd, macd_dif, macd_dea</code></td>
+                            <td>MACD指标、快线、慢线</td>
+                        </tr>
+                        <tr>
+                            <td>KDJ</td>
+                            <td><code>kdj_k, kdj_d, kdj_j</code></td>
+                            <td>KDJ指标K、D、J值</td>
+                        </tr>
+                        <tr>
+                            <td>RSI</td>
+                            <td><code>rsi_6, rsi_12, rsi_24</code></td>
+                            <td>相对强弱指标</td>
+                        </tr>
+                        <tr>
+                            <td>布林带</td>
+                            <td><code>boll_upper, boll_mid, boll_lower</code></td>
+                            <td>上轨、中轨、下轨</td>
+                        </tr>
+                        <tr>
+                            <td>其他指标</td>
+                            <td><code>atr, cci, dmi, obv, wr</code></td>
+                            <td>ATR、CCI、DMI、OBV、威廉指标等</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>Ai-TuShare 股票数据API服务 | 基于 Tushare Pro | <a href="https://tushare.pro/document/2" style="color: var(--accent-cyan);">查看完整数据接口文档</a></p>
+    </footer>
+    <script>
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+
+        // Load saved theme or default to light
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        if (savedTheme === 'dark') {
+            html.classList.add('dark-mode');
+            themeToggle.textContent = '☀️';
+        } else {
+            themeToggle.textContent = '🌙';
+        }
+
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark-mode');
+            const isDark = html.classList.contains('dark-mode');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            themeToggle.textContent = isDark ? '☀️' : '🌙';
+        });
+    </script>
+</body>
+</html>

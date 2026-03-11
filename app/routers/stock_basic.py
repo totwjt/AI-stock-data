@@ -24,8 +24,13 @@ async def get_stock_list(
     if fields:
         kwargs["fields"] = fields
     
-    df = tushare_client.get_stock_basic(**kwargs)
-    return {"code": 0, "data": df.to_dict(orient="records"), "total": len(df)}
+    try:
+        df = tushare_client.get_stock_basic(**kwargs)
+        if df is None:
+            return {"code": 500, "message": "Tushare 返回空数据", "data": [], "total": 0}
+        return {"code": 0, "data": df.to_dict(orient="records"), "total": len(df)}
+    except Exception as e:
+        return {"code": 500, "message": f"获取数据失败: {str(e)}", "data": [], "total": 0}
 
 
 @router.get("/daily")
@@ -46,8 +51,13 @@ async def get_daily(
     if fields:
         kwargs["fields"] = fields
     
-    df = tushare_client.get_daily(**kwargs)
-    return {"code": 0, "data": df.to_dict(orient="records"), "total": len(df)}
+    try:
+        df = tushare_client.get_daily(**kwargs)
+        if df is None:
+            return {"code": 500, "message": "Tushare 返回空数据", "data": [], "total": 0}
+        return {"code": 0, "data": df.to_dict(orient="records"), "total": len(df)}
+    except Exception as e:
+        return {"code": 500, "message": f"获取数据失败: {str(e)}", "data": [], "total": 0}
 
 
 @router.get("/trade_cal")
@@ -65,5 +75,10 @@ async def get_trade_cal(
     if end_date:
         kwargs["end_date"] = end_date
     
-    df = tushare_client.get_trade_cal(**kwargs)
-    return {"code": 0, "data": df.to_dict(orient="records"), "total": len(df)}
+    try:
+        df = tushare_client.get_trade_cal(**kwargs)
+        if df is None:
+            return {"code": 500, "message": "Tushare 返回空数据", "data": [], "total": 0}
+        return {"code": 0, "data": df.to_dict(orient="records"), "total": len(df)}
+    except Exception as e:
+        return {"code": 500, "message": f"获取数据失败: {str(e)}", "data": [], "total": 0}

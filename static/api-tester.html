@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API测试 - Ai-TuShare</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* 默认亮色模式 */
+            --bg-primary: #f8fafc;
+            --bg-secondary: #f1f5f9;
+            --bg-tertiary: #e5e7eb;
+            --bg-card: #ffffff;
+            --border-color: #d1d5db;
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --text-muted: #6b7280;
+            --accent-cyan: #0284c7;
+            --accent-green: #059669;
+            --accent-orange: #d97706;
+            --accent-red: #dc2626;
+            --accent-purple: #7c3aed;
+            --accent-gradient: linear-gradient(135deg, #0284c7 0%, #059669 100%);
+        }
+
+        /* 暗黑模式 */
+        .dark-mode {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-tertiary: #1a2234;
+            --bg-card: #151d2e;
+            --border-color: #2a3548;
+            --text-primary: #f0f4f8;
+            --text-secondary: #8892a4;
+            --text-muted: #5c6577;
+            --accent-cyan: #00d4ff;
+            --accent-green: #00ff88;
+            --accent-orange: #ff9500;
+            --accent-red: #ff4757;
+            --accent-purple: #a855f7;
+            --accent-gradient: linear-gradient(135deg, #00d4ff 0%, #00ff88 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .dark-mode body::before {
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(0, 212, 255, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(0, 255, 136, 0.06) 0%, transparent 40%);
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-inner {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            background: var(--accent-gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-link {
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: var(--bg-tertiary);
+            color: var(--accent-cyan);
+            border: 1px solid var(--border-color);
+        }
+
+        .main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-subtitle {
+            color: var(--text-muted);
+            margin-bottom: 32px;
+        }
+
+        /* API List */
+        .api-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .api-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .api-card:hover {
+            border-color: var(--accent-cyan);
+        }
+
+        .api-header {
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            background: var(--bg-tertiary);
+        }
+
+        .api-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .method-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .method-get { background: rgba(0, 255, 136, 0.15); color: var(--accent-green); }
+        .method-post { background: rgba(255, 149, 0, 0.15); color: var(--accent-orange); }
+
+        .api-path {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+
+        .api-name {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .api-toggle {
+            color: var(--text-muted);
+            transition: transform 0.2s;
+        }
+
+        .api-card.expanded .api-toggle {
+            transform: rotate(180deg);
+        }
+
+        .api-body {
+            display: none;
+            padding: 24px;
+        }
+
+        .api-card.expanded .api-body {
+            display: block;
+        }
+
+        .api-description {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 20px;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        /* Form */
+        .params-form {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent-gradient);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Response */
+        .response-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .response-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .response-status {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .response-status.success { color: var(--accent-green); }
+        .response-status.error { color: var(--accent-red); }
+
+        .response-time {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .response-body {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            max-height: 400px;
+            overflow: auto;
+        }
+
+        .response-body pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--bg-primary);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .footer {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-muted);
+            font-size: 13px;
+            border-top: 1px solid var(--border-color);
+            margin-top: 32px;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <a href="/" class="logo">
+                <div class="logo-icon">📈</div>
+                <div class="logo-text">Ai-TuShare</div>
+            </a>
+            <nav class="nav">
+                <a href="/" class="nav-link">🏠 看板</a>
+                <a href="/api-tester" class="nav-link active">🧪 API测试</a>
+                <a href="/docs" class="nav-link">📚 接口文档</a>
+                <a href="/ai-docs" class="nav-link">🤖 AI文档</a>
+                <button id="themeToggle" class="nav-link" style="border: none; background: none; cursor: pointer;">🌙</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <h1 class="page-title animate-in">🧪 API 测试面板</h1>
+        <p class="page-subtitle animate-in">在线测试所有API接口，查看实时返回结果</p>
+
+        <div class="api-grid" id="apiGrid">
+            <!-- API Cards will be rendered here -->
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>Ai-TuShare 股票数据API服务 | 基于 Tushare Pro</p>
+    </footer>
+
+    <script>
+        const APIs = [
+            {
+                name: "股票列表",
+                path: "/api/v1/stock/list",
+                method: "GET",
+                description: "获取股票列表，支持按交易所、上市状态筛选",
+                params: [
+                    { name: "exchange", required: false, default: "", placeholder: "SSE/SZSE/BSE (可选)", desc: "交易所" },
+                    { name: "list_status", required: false, default: "L", placeholder: "L/D/P (默认L)", desc: "上市状态" },
+                    { name: "fields", required: false, default: "", placeholder: "ts_code,name (可选)", desc: "返回字段" }
+                ]
+            },
+            {
+                name: "日线行情",
+                path: "/api/v1/stock/daily",
+                method: "GET",
+                description: "获取股票日线行情数据",
+                params: [
+                    { name: "ts_code", required: true, default: "000001.SZ", placeholder: "000001.SZ", desc: "股票代码 (必需)" },
+                    { name: "start_date", required: false, default: "", placeholder: "20250101 (可选)", desc: "开始日期" },
+                    { name: "end_date", required: false, default: "", placeholder: "20250110 (可选)", desc: "结束日期" },
+                    { name: "fields", required: false, default: "", placeholder: "open,close (可选)", desc: "返回字段" }
+                ]
+            },
+            {
+                name: "交易日历",
+                path: "/api/v1/stock/trade_cal",
+                method: "GET",
+                description: "获取指定交易所的交易日历",
+                params: [
+                    { name: "exchange", required: false, default: "SSE", placeholder: "SSE (默认)", desc: "交易所" },
+                    { name: "start_date", required: false, default: "", placeholder: "20250101 (可选)", desc: "开始日期" },
+                    { name: "end_date", required: false, default: "", placeholder: "20250131 (可选)", desc: "结束日期" }
+                ]
+            },
+            {
+                name: "每日基本面",
+                path: "/api/v1/indicators/daily_basic",
+                method: "GET",
+                description: "获取每日基本面指标：收盘价、换手率、市盈率、市净率等",
+                params: [
+                    { name: "ts_code", required: false, default: "", placeholder: "000001.SZ (可选)", desc: "股票代码" },
+                    { name: "trade_date", required: false, default: "", placeholder: "20250110 (可选)", desc: "交易日期" },
+                    { name: "start_date", required: false, default: "", placeholder: "20250101 (可选)", desc: "开始日期" },
+                    { name: "end_date", required: false, default: "", placeholder: "20250110 (可选)", desc: "结束日期" }
+                ]
+            },
+            {
+                name: "技术因子",
+                path: "/api/v1/indicators/factors",
+                method: "GET",
+                description: "获取技术面因子数据：MACD、KDJ、RSI、布林带等",
+                params: [
+                    { name: "ts_code", required: true, default: "000001.SZ", placeholder: "000001.SZ", desc: "股票代码 (必需)" },
+                    { name: "trade_date", required: false, default: "", placeholder: "20250110 (可选)", desc: "交易日期" },
+                    { name: "start_date", required: false, default: "", placeholder: "20250101 (可选)", desc: "开始日期" },
+                    { name: "end_date", required: false, default: "", placeholder: "20250110 (可选)", desc: "结束日期" }
+                ]
+            },
+            {
+                name: "请求日志列表",
+                path: "/api/v1/logs/list",
+                method: "GET",
+                description: "获取API请求日志列表",
+                params: [
+                    { name: "page", required: false, default: "1", placeholder: "1", desc: "页码" },
+                    { name: "page_size", required: false, default: "10", placeholder: "10", desc: "每页数量" },
+                    { name: "api_name", required: false, default: "", placeholder: "stock/list (可选)", desc: "API名称" }
+                ]
+            },
+            {
+                name: "请求统计",
+                path: "/api/v1/logs/stats",
+                method: "GET",
+                description: "获取API请求统计数据",
+                params: []
+            }
+        ];
+
+        function renderAPIs() {
+            const grid = document.getElementById('apiGrid');
+            grid.innerHTML = APIs.map((api, index) => `
+                <div class="api-card animate-in" style="animation-delay: ${index * 0.05}s" data-index="${index}">
+                    <div class="api-header" onclick="toggleApi(${index})">
+                        <div class="api-info">
+                            <span class="method-badge method-${api.method.toLowerCase()}">${api.method}</span>
+                            <span class="api-path">${api.path}</span>
+                            <span class="api-name">${api.name}</span>
+                        </div>
+                        <span class="api-toggle">▼</span>
+                    </div>
+                    <div class="api-body">
+                        <div class="api-description">${api.description}</div>
+                        <form class="params-form" onsubmit="handleSubmit(event, ${index})">
+                            ${api.params.length > 0 ? api.params.map(p => `
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        ${p.name} ${p.required ? '<span style="color: var(--accent-red);">*</span>' : ''}
+                                        <span style="color: var(--text-muted); font-weight: 400;"> - ${p.desc}</span>
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        name="${p.name}" 
+                                        class="form-input"
+                                        placeholder="${p.placeholder}"
+                                        value="${p.default}"
+                                        ${p.required ? 'required' : ''}
+                                    >
+                                </div>
+                            `).join('') : '<div class="form-group"><p style="color: var(--text-muted); font-size: 14px;">此接口无需参数</p></div>'}
+                            <button type="submit" class="btn btn-primary" id="btn-${index}">
+                                🚀 发送请求
+                            </button>
+                        </form>
+                        <div class="response-section" id="response-${index}" style="display: none;">
+                            <div class="response-header">
+                                <span class="response-status" id="status-${index}"></span>
+                                <span class="response-time" id="time-${index}"></span>
+                            </div>
+                            <div class="response-body">
+                                <pre id="response-data-${index}"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleApi(index) {
+            const card = document.querySelector(`[data-index="${index}"]`);
+            card.classList.toggle('expanded');
+        }
+
+        async function handleSubmit(event, index) {
+            event.preventDefault();
+            const api = APIs[index];
+            const form = event.target;
+            const formData = new FormData(form);
+            
+            const params = new URLSearchParams();
+            for (const [key, value] of formData.entries()) {
+                if (value) params.append(key, value);
+            }
+            
+            const url = api.path + (params.toString() ? '?' + params.toString() : '');
+            const btn = document.getElementById(`btn-${index}`);
+            const responseSection = document.getElementById(`response-${index}`);
+            const statusEl = document.getElementById(`status-${index}`);
+            const timeEl = document.getElementById(`time-${index}`);
+            const dataEl = document.getElementById(`response-data-${index}`);
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span> 请求中...';
+            responseSection.style.display = 'none';
+            
+            const startTime = performance.now();
+            
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                
+                statusEl.textContent = `状态: ${res.status} ${res.statusText}`;
+                statusEl.className = `response-status ${res.ok ? 'success' : 'error'}`;
+                timeEl.textContent = `耗时: ${duration}ms`;
+                dataEl.textContent = JSON.stringify(data, null, 2);
+                responseSection.style.display = 'block';
+            } catch (error) {
+                statusEl.textContent = `错误: ${error.message}`;
+                statusEl.className = 'response-status error';
+                dataEl.textContent = error.stack || error.message;
+                responseSection.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🚀 发送请求';
+            }
+        }
+
+        renderAPIs();
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+
+        // Load saved theme or default to light
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        if (savedTheme === 'dark') {
+            html.classList.add('dark-mode');
+            themeToggle.textContent = '☀️';
+        } else {
+            themeToggle.textContent = '🌙';
+        }
+
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark-mode');
+            const isDark = html.classList.contains('dark-mode');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            themeToggle.textContent = isDark ? '☀️' : '🌙';
+        });
+    </script>
+</body>
+</html>
