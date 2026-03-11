@@ -50,14 +50,47 @@ async def get_factors(
     """
     获取技术面因子数据
     包含: MACD、KDJ、RSI、布林带、ATR、DMI、CCI、BBI、OBV等大量技术指标
+    
+    性能优化建议:
+    1. 使用 trade_date 查询单日数据最快 (约 0.5秒)
+    2. 使用 start_date + end_date 查询指定范围 (建议不超过90天)
+    3. 避免不指定日期范围查询全部历史数据 (会很慢)
     """
     kwargs = {"ts_code": ts_code}
+    
+    # 参数验证和优化
     if trade_date:
+        # 单日查询 - 最快
         kwargs["trade_date"] = trade_date
-    if start_date:
-        kwargs["start_date"] = start_date
-    if end_date:
-        kwargs["end_date"] = end_date
+    elif start_date and end_date:
+        # 日期范围查询 - 检查范围是否过大
+        from datetime import datetime
+        
+        try:
+            start = datetime.strptime(start_date, "%Y%m%d")
+            end = datetime.strptime(end_date, "%Y%m%d")
+            
+            # 检查日期顺序
+            if start > end:
+                return {"code": 400, "message": "start_date 不能晚于 end_date", "data": [], "total": 0}
+            
+            # 检查日期范围是否过大 (最多90天)
+            days_diff = (end - start).days + 1
+            if days_diff > 90:
+                return {"code": 400, "message": f"日期范围过大 ({days_diff}天)，最多支持90天", "data": [], "total": 0}
+            
+            kwargs["start_date"] = start_date
+            kwargs["end_date"] = end_date
+        except ValueError:
+            return {"code": 400, "message": "日期格式错误，应为 YYYYMMDD", "data": [], "total": 0}
+    else:
+        # 未指定日期范围，提示用户
+        return {
+            "code": 400, 
+            "message": "请指定 trade_date 或 start_date + end_date，避免查询全部历史数据", 
+            "data": [], 
+            "total": 0
+        }
     
     try:
         df = tushare_client.get_stk_factor_pro(**kwargs)
