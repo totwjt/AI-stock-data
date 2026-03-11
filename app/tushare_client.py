@@ -1,5 +1,11 @@
+import os
 import tushare as ts
 from app.config import settings
+
+# 禁用代理以解决VPN软件导致的网络请求失败问题
+# 这会覆盖系统代理设置，让Tushare直接连接服务器
+os.environ['NO_PROXY'] = '*'
+os.environ['no_proxy'] = '*'
 
 
 class TushareClient:

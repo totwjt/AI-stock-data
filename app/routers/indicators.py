@@ -33,7 +33,9 @@ async def get_daily_basic(
         df = tushare_client.get_daily_basic(**kwargs)
         if df is None:
             return {"code": 500, "message": "Tushare 返回空数据", "data": [], "total": 0}
-        return {"code": 0, "data": df.to_dict(orient="records"), "total": len(df)}
+        # 处理 nan 值，转换为 None 以符合 JSON 规范
+        data = df.replace({float('nan'): None}).to_dict(orient="records")
+        return {"code": 0, "data": data, "total": len(df)}
     except Exception as e:
         return {"code": 500, "message": f"获取数据失败: {str(e)}", "data": [], "total": 0}
 
@@ -61,6 +63,8 @@ async def get_factors(
         df = tushare_client.get_stk_factor_pro(**kwargs)
         if df is None:
             return {"code": 500, "message": "Tushare 返回空数据", "data": [], "total": 0}
-        return {"code": 0, "data": df.to_dict(orient="records"), "total": len(df)}
+        # 处理 nan 值，转换为 None 以符合 JSON 规范
+        data = df.replace({float('nan'): None}).to_dict(orient="records")
+        return {"code": 0, "data": data, "total": len(df)}
     except Exception as e:
         return {"code": 500, "message": f"获取数据失败: {str(e)}", "data": [], "total": 0}
