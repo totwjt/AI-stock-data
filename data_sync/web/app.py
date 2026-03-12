@@ -52,6 +52,17 @@ def create_app():
             syncable_tables = ["stock_basic", "trade_calendar", "daily", 
                                "adj_factor", "daily_basic", "index_daily"]
             
+            # 获取表描述信息
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    response = await client.get("http://localhost:8001/api/sync/descriptions")
+                    descriptions = response.json()
+                    # 转换为字典以便查找
+                    desc_dict = {d["name"]: d for d in descriptions}
+            except:
+                desc_dict = {}
+            
             html = """
             <!DOCTYPE html>
             <html>
@@ -60,7 +71,7 @@ def create_app():
                 <style>
                     body { font-family: Arial, sans-serif; margin: 20px; }
                     h1 { color: #333; }
-                    table { border-collapse: collapse; width: 100%; max-width: 1000px; }
+                    table { border-collapse: collapse; width: 100%; max-width: 1400px; }
                     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                     th { background-color: #f2f2f2; }
                     tr:hover { background-color: #f5f5f5; }
@@ -81,6 +92,7 @@ def create_app():
                     .status-running { color: #2196F3; }
                     .status-completed { color: #4CAF50; }
                     .status-failed { color: #f44336; }
+                    .desc { color: #666; font-size: 12px; }
                 </style>
                 <script>
                     async function startSync(tableName) {
@@ -146,6 +158,15 @@ def create_app():
                             }
                         }, 2000);
                     }
+                    
+                    function showTableDesc(tableName) {
+                        const descDiv = document.getElementById('desc-' + tableName);
+                        if (descDiv.style.display === 'none') {
+                            descDiv.style.display = 'block';
+                        } else {
+                            descDiv.style.display = 'none';
+                        }
+                    }
                 </script>
             </head>
             <body>
@@ -154,6 +175,7 @@ def create_app():
                 <table>
                     <tr>
                         <th>表名</th>
+                        <th>描述</th>
                         <th>操作</th>
                         <th>同步</th>
                         <th>状态</th>
@@ -165,9 +187,29 @@ def create_app():
                 is_syncable = table_name in syncable_tables
                 sync_btn = f'<button id="sync-{table_name}" class="sync-btn" onclick="startSync(\'{table_name}\')">同步</button>' if is_syncable else 'N/A'
                 
+                # 获取表描述
+                desc_text = "-"
+                desc_detail = ""
+                if table_name in desc_dict:
+                    desc = desc_dict[table_name]
+                    desc_text = desc.get("description", "-")
+                    # 构建字段列表
+                    fields_html = "<br>".join([
+                        f"{f['name']} ({f['type']}): {f['description']}" 
+                        for f in desc.get("fields", [])[:5]  # 只显示前5个字段
+                    ])
+                    if len(desc.get("fields", [])) > 5:
+                        fields_html += f"<br>... 还有 {len(desc.get('fields', [])) - 5} 个字段"
+                    desc_detail = f'<div id="desc-{table_name}" class="desc" style="display:none;">{fields_html}</div>'
+                
                 html += f"""
                     <tr>
                         <td>{table_name}</td>
+                        <td>
+                            {desc_text}
+                            {desc_detail}
+                            <a href="javascript:void(0)" onclick="showTableDesc('{table_name}')">查看详情</a>
+                        </td>
                         <td>
                             <a href="/table/{table_name}">浏览数据</a> |
                             <a href="/schema/{table_name}">查看结构</a>

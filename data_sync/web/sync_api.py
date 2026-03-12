@@ -19,6 +19,12 @@ from data_sync.sync import (
     IndexDailySync,
 )
 from .sync_manager import sync_manager, SyncStatus
+from .table_descriptions import (
+    get_table_description,
+    get_all_table_descriptions,
+    TableDescription,
+    FieldDescription,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sync", tags=["sync"])
@@ -46,6 +52,22 @@ class TaskStatusResponse(BaseModel):
     records_count: int
     error_message: Optional[str] = None
     progress: float
+
+
+class FieldResponse(BaseModel):
+    """字段响应模型"""
+    name: str
+    type: str
+    description: str
+    is_primary_key: bool
+
+
+class TableDescriptionResponse(BaseModel):
+    """表描述响应模型"""
+    name: str
+    description: str
+    fields: List[FieldResponse]
+    sync_type: str
 
 
 # 表名到同步类的映射
@@ -188,3 +210,60 @@ async def get_syncable_tables():
         "full_sync": ["stock_basic", "trade_calendar"],
         "incremental_sync": ["daily", "adj_factor", "daily_basic", "index_daily"],
     }
+
+
+@router.get("/descriptions", response_model=List[TableDescriptionResponse])
+async def get_table_descriptions():
+    """
+    获取所有表的描述信息
+    """
+    descriptions = get_all_table_descriptions()
+    
+    return [
+        TableDescriptionResponse(
+            name=desc.name,
+            description=desc.description,
+            fields=[
+                FieldResponse(
+                    name=field.name,
+                    type=field.type,
+                    description=field.description,
+                    is_primary_key=field.is_primary_key,
+                )
+                for field in desc.fields
+            ],
+            sync_type=desc.sync_type,
+        )
+        for desc in descriptions
+    ]
+
+
+@router.get("/descriptions/{table_name}", response_model=TableDescriptionResponse)
+async def get_table_description_api(table_name: str):
+    """
+    获取指定表的描述信息
+    
+    - **table_name**: 表名
+    """
+    description = get_table_description(table_name)
+    
+    if not description:
+        raise HTTPException(
+            status_code=404,
+            detail=f"表 {table_name} 的描述信息不存在"
+        )
+    
+    return TableDescriptionResponse(
+        name=description.name,
+        description=description.description,
+        fields=[
+            FieldResponse(
+                name=field.name,
+                type=field.type,
+                description=field.description,
+                is_primary_key=field.is_primary_key,
+            )
+            for field in description.fields
+        ],
+        sync_type=description.sync_type,
+    )
