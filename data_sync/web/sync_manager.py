@@ -152,14 +152,8 @@ class SyncManager:
             task = self.active_tasks[task_id]
             task.cancel()
             
-            # 等待任务真正停止
-            try:
-                await asyncio.wait_for(task, timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning(f"Task {task_id} did not stop within timeout")
-            except asyncio.CancelledError:
-                pass
-            
+            # 不等待任务完成，直接返回
+            # 任务会在 _run_sync_task 中处理取消逻辑
             return True
     
     async def get_task_status(self, task_id: str) -> Optional[SyncTask]:

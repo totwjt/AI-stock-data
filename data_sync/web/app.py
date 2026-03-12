@@ -108,6 +108,18 @@ def create_app():
                         margin-left: 5px;
                     }
                     .resync-btn:hover { background-color: #1976D2; }
+                    .stop-btn { 
+                        background-color: #f44336; 
+                        color: white; 
+                        border: none; 
+                        padding: 5px 10px; 
+                        cursor: pointer; 
+                        border-radius: 3px;
+                        font-size: 12px;
+                        margin-left: 5px;
+                    }
+                    .stop-btn:hover { background-color: #d32f2f; }
+                    .stop-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
                     .status-pending { color: #ff9800; }
                     .status-running { color: #2196F3; }
                     .status-completed { color: #4CAF50; }
@@ -150,8 +162,15 @@ def create_app():
                     }
                     
                     async function pollStatus(tableName, taskId) {
-                        const btn = document.getElementById('sync-' + tableName);
+                        const syncBtn = document.getElementById('sync-' + tableName);
+                        const stopBtn = document.getElementById('stop-' + tableName);
                         const status = document.getElementById('status-' + tableName);
+                        
+                        // 存储任务ID到停止按钮
+                        if (stopBtn) {
+                            stopBtn.setAttribute('data-task-id', taskId);
+                            stopBtn.disabled = false;
+                        }
                         
                         const interval = setInterval(async () => {
                             try {
@@ -161,17 +180,35 @@ def create_app():
                                 if (data.status === 'completed') {
                                     status.textContent = '完成 (' + data.records_count + ' 条)';
                                     status.className = 'status-completed';
-                                    btn.disabled = false;
-                                    btn.textContent = '同步';
+                                    syncBtn.disabled = false;
+                                    syncBtn.textContent = '同步';
+                                    if (stopBtn) {
+                                        stopBtn.disabled = true;
+                                        stopBtn.setAttribute('data-task-id', '');
+                                    }
                                     clearInterval(interval);
                                 } else if (data.status === 'failed') {
                                     status.textContent = '失败: ' + data.error_message;
                                     status.className = 'status-failed';
-                                    btn.disabled = false;
-                                    btn.textContent = '同步';
+                                    syncBtn.disabled = false;
+                                    syncBtn.textContent = '同步';
+                                    if (stopBtn) {
+                                        stopBtn.disabled = true;
+                                        stopBtn.setAttribute('data-task-id', '');
+                                    }
                                     clearInterval(interval);
                                 } else if (data.status === 'running') {
                                     status.textContent = '同步中... ' + data.progress + '%';
+                                } else if (data.status === 'stopped') {
+                                    status.textContent = '已停止';
+                                    status.className = 'status-failed';
+                                    syncBtn.disabled = false;
+                                    syncBtn.textContent = '同步';
+                                    if (stopBtn) {
+                                        stopBtn.disabled = true;
+                                        stopBtn.setAttribute('data-task-id', '');
+                                    }
+                                    clearInterval(interval);
                                 }
                             } catch (error) {
                                 clearInterval(interval);
@@ -213,6 +250,51 @@ def create_app():
                         }
                     }
                     
+                    async function stopSync(tableName) {
+                        const stopBtn = document.getElementById('stop-' + tableName);
+                        const status = document.getElementById('status-' + tableName);
+                        const syncBtn = document.getElementById('sync-' + tableName);
+                        
+                        stopBtn.disabled = true;
+                        stopBtn.textContent = '停止中...';
+                        status.textContent = '停止中';
+                        
+                        try {
+                            // 获取当前任务ID（从状态元素的data-task-id属性）
+                            const taskId = stopBtn.getAttribute('data-task-id');
+                            if (!taskId) {
+                                status.textContent = '无运行中的任务';
+                                stopBtn.disabled = false;
+                                stopBtn.textContent = '停止';
+                                return;
+                            }
+                            
+                            const response = await fetch('/api/sync/stop/' + taskId, {
+                                method: 'POST'
+                            });
+                            
+                            const data = await response.json();
+                            
+                            if (response.ok) {
+                                status.textContent = '已停止';
+                                status.className = 'status-failed';
+                                syncBtn.disabled = false;
+                                syncBtn.textContent = '同步';
+                            } else {
+                                status.textContent = '停止失败: ' + data.detail;
+                                syncBtn.disabled = false;
+                                syncBtn.textContent = '同步';
+                            }
+                        } catch (error) {
+                            status.textContent = '停止请求失败: ' + error;
+                            syncBtn.disabled = false;
+                            syncBtn.textContent = '同步';
+                        } finally {
+                            stopBtn.disabled = false;
+                            stopBtn.textContent = '停止';
+                        }
+                    }
+                    
                     function showTableDesc(tableName) {
                         const descDiv = document.getElementById('desc-' + tableName);
                         if (descDiv.style.display === 'none') {
@@ -246,9 +328,11 @@ def create_app():
                 # 同步按钮使用同步任务名称
                 if is_syncable:
                     sync_btn = f'<button id="sync-{sync_task_name}" class="sync-btn" onclick="startSync(\'{sync_task_name}\')">同步</button>'
+                    stop_btn = f'<button id="stop-{sync_task_name}" class="stop-btn" onclick="stopSync(\'{sync_task_name}\')" disabled>停止</button>'
                     status_id = f"status-{sync_task_name}"
                 else:
                     sync_btn = 'N/A'
+                    stop_btn = ''
                     status_id = f"status-{table_name}"
                 
                 # 获取表描述（使用同步任务名称）
@@ -283,7 +367,7 @@ def create_app():
                             <a href="/table/{table_name}">浏览数据</a> |
                             <a href="/schema/{table_name}">查看结构</a>
                         </td>
-                        <td>{sync_btn}{resync_btn}</td>
+                        <td>{sync_btn}{resync_btn}{stop_btn}</td>
                         <td id="{status_id}">-</td>
                     </tr>
                 """
