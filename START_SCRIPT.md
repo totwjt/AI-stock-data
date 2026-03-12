@@ -16,11 +16,17 @@
 
 ### 2. 启动单个模块
 ```bash
-# 启动股票API服务
+# 后台启动股票API服务
 ./start.sh app
 
-# 启动Web查询界面
+# 前台启动股票API服务（支持Ctrl+C中断）
+./start.sh -f app
+
+# 后台启动Web查询界面
 ./start.sh web
+
+# 前台启动Web查询界面（支持Ctrl+C中断）
+./start.sh -f web
 ```
 
 ### 3. 启动所有模块

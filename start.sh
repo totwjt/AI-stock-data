@@ -93,13 +93,15 @@ show_help() {
     echo "  -h, --help     显示帮助信息"
     echo "  -s, --stop     停止指定模块"
     echo "  -l, --list     列出正在运行的模块"
+    echo "  -f, --foreground 前台启动（支持Ctrl+C中断）"
     echo ""
     echo "示例:"
-    echo "  $0 app          # 启动股票API服务"
-    echo "  $0 web          # 启动Web查询界面"
-    echo "  $0 all          # 启动所有模块"
-    echo "  $0 -s app       # 停止股票API服务"
-    echo "  $0 -l           # 列出正在运行的模块"
+    echo "  $0 app              # 后台启动股票API服务"
+    echo "  $0 -f app           # 前台启动股票API服务（支持Ctrl+C）"
+    echo "  $0 web              # 后台启动Web查询界面"
+    echo "  $0 all              # 启动所有模块（后台）"
+    echo "  $0 -s app           # 停止股票API服务"
+    echo "  $0 -l               # 列出正在运行的模块"
 }
 
 # 检查端口占用
@@ -149,8 +151,8 @@ start_module() {
     # 清理旧日志
     > "$log_file"
     
-    # 启动应用
-    "$VENV_PATH" -m "$command" > "$log_file" 2>&1 &
+    # 启动应用（使用nohup确保进程独立）
+    nohup "$VENV_PATH" -m "$command" > "$log_file" 2>&1 &
     
     # 保存PID
     echo $! > "$PID_DIR/$module.pid"
@@ -229,10 +231,53 @@ stop_all() {
     done
 }
 
+# 启动前台模块（支持Ctrl+C）
+start_foreground() {
+    local module=$1
+    local port=$(get_module_port $module)
+    local log_file=$(get_module_log $module)
+    local command=$(get_module_command $module)
+    local name=$(get_module_desc $module)
+    
+    # 检查端口
+    if ! check_port $port $name; then
+        return 1
+    fi
+    
+    # 检查虚拟环境
+    if [ ! -f "$VENV_PATH" ]; then
+        echo -e "${YELLOW}虚拟环境未找到，正在创建...${NC}"
+        python3 -m venv venv
+        ./venv/bin/pip install -r requirements.txt
+    fi
+    
+    # 检查依赖
+    ./venv/bin/pip freeze | grep -q "fastapi" || {
+        echo -e "${YELLOW}依赖包未安装，正在安装...${NC}"
+        ./venv/bin/pip install -r requirements.txt
+    }
+    
+    echo -e "${YELLOW}启动 $name...${NC}"
+    echo "日志文件: $log_file"
+    echo "访问地址: http://localhost:$port"
+    echo "按 Ctrl+C 停止"
+    echo ""
+    
+    # 清理旧日志
+    > "$log_file"
+    
+    # 设置陷阱，确保退出时清理
+    trap "echo -e '\n${YELLOW}正在停止 $name...${NC}'; pkill -f \"$command\" 2>/dev/null; echo -e '${GREEN}$name 已停止${NC}'; exit 0" INT TERM
+    
+    # 前台运行应用
+    "$VENV_PATH" -m "$command"
+}
+
 # 主函数
 main() {
     local action="start"
     local modules=()
+    local foreground=false
     
     # 解析参数
     while [[ $# -gt 0 ]]; do
@@ -248,6 +293,10 @@ main() {
             -l|--list)
                 list_modules
                 exit 0
+                ;;
+            -f|--foreground)
+                foreground=true
+                shift
                 ;;
             all)
                 modules=("${MODULE_NAMES[@]}")
@@ -276,12 +325,19 @@ main() {
         start)
             echo -e "${GREEN}=== Ai-TuShare 启动脚本 ===${NC}"
             echo ""
-            for module in "${modules[@]}"; do
-                start_module $module
-            done
-            echo ""
-            echo -e "${GREEN}=== 启动完成 ===${NC}"
-            list_modules
+            
+            if [ "$foreground" = true ] && [ ${#modules[@]} -eq 1 ]; then
+                # 前台启动单个模块（支持Ctrl+C）
+                start_foreground "${modules[0]}"
+            else
+                # 后台启动模块
+                for module in "${modules[@]}"; do
+                    start_module $module
+                done
+                echo ""
+                echo -e "${GREEN}=== 启动完成 ===${NC}"
+                list_modules
+            fi
             ;;
         stop)
             if [ ${#modules[@]} -eq 0 ]; then
