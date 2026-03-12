@@ -43,6 +43,11 @@ async def run_sync(sync_type: str, start_date: str = None, end_date: str = None)
     async with async_session() as db:
         if sync_type == "stock_basic":
             sync = StockBasicSync(db)
+            # 支持增量同步（集合差集过滤）
+            await sync.sync_with_retry(sync.sync_incremental)
+        elif sync_type == "stock_basic_full":
+            sync = StockBasicSync(db)
+            # 全量同步
             await sync.sync_with_retry(sync.sync_full)
         elif sync_type == "trade_cal":
             sync = TradeCalendarSync(db)

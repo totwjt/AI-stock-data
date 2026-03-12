@@ -6,9 +6,12 @@ from apscheduler.triggers.cron import CronTrigger
 
 from data_sync.database import async_session, init_db
 from data_sync.sync import (
+    StockBasicSync,
+    TradeCalendarSync,
     DailySync,
     AdjFactorSync,
     DailyBasicSync,
+    IndexDailySync,
 )
 
 
@@ -61,8 +64,47 @@ class DataSyncScheduler:
         except Exception as e:
             self.logger.error(f"每日指标同步任务失败: {str(e)}")
     
+    async def sync_index_daily_task(self):
+        """同步指数行情任务"""
+        self.logger.info("开始执行指数行情同步任务")
+        try:
+            await init_db()
+            async with async_session() as db:
+                sync = IndexDailySync(db)
+                start_date = (datetime.now() - datetime.timedelta(days=30)).strftime("%Y%m%d")
+                end_date = datetime.now().strftime("%Y%m%d")
+                await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            self.logger.info("指数行情同步任务完成")
+        except Exception as e:
+            self.logger.error(f"指数行情同步任务失败: {str(e)}")
+    
+    async def sync_stock_basic_full_task(self):
+        """同步股票基础信息全量任务（每周一次）"""
+        self.logger.info("开始执行股票基础信息全量同步任务")
+        try:
+            await init_db()
+            async with async_session() as db:
+                sync = StockBasicSync(db)
+                await sync.sync_with_retry(sync.sync_full)
+            self.logger.info("股票基础信息全量同步任务完成")
+        except Exception as e:
+            self.logger.error(f"股票基础信息全量同步任务失败: {str(e)}")
+    
+    async def sync_trade_calendar_full_task(self):
+        """同步交易日历全量任务（每周一次）"""
+        self.logger.info("开始执行交易日历全量同步任务")
+        try:
+            await init_db()
+            async with async_session() as db:
+                sync = TradeCalendarSync(db)
+                await sync.sync_with_retry(sync.sync_full)
+            self.logger.info("交易日历全量同步任务完成")
+        except Exception as e:
+            self.logger.error(f"交易日历全量同步任务失败: {str(e)}")
+    
     def start(self):
         """启动调度器"""
+        # 每日增量同步（行情类数据）
         self.scheduler.add_job(
             self.sync_daily_task,
             trigger=CronTrigger(hour=16, minute=30),
@@ -82,6 +124,28 @@ class DataSyncScheduler:
             trigger=CronTrigger(hour=16, minute=40),
             id="sync_daily_basic",
             name="同步每日指标"
+        )
+        
+        self.scheduler.add_job(
+            self.sync_index_daily_task,
+            trigger=CronTrigger(hour=16, minute=45),
+            id="sync_index_daily",
+            name="同步指数行情"
+        )
+        
+        # 每周全量同步（基础表）
+        self.scheduler.add_job(
+            self.sync_stock_basic_full_task,
+            trigger=CronTrigger(day_of_week=0, hour=2, minute=0),
+            id="sync_stock_basic_full",
+            name="全量同步股票基础信息"
+        )
+        
+        self.scheduler.add_job(
+            self.sync_trade_calendar_full_task,
+            trigger=CronTrigger(day_of_week=0, hour=2, minute=30),
+            id="sync_trade_calendar_full",
+            name="全量同步交易日历"
         )
         
         self.scheduler.start()

@@ -34,6 +34,7 @@ class SyncRequest(BaseModel):
     """同步请求模型"""
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    sync_type: Optional[str] = None  # "full" 或 "incremental"
 
 
 class SyncResponse(BaseModel):
@@ -106,12 +107,17 @@ async def start_sync(table_name: str, request: SyncRequest = SyncRequest()):
         
         # 判断同步类型
         if table_name in ["stock_basic", "trade_calendar"]:
-            # 全量同步
-            sync_func = sync_instance.sync_full
-            args = ()
-            kwargs = {}
+            # 基础表：支持全量和增量同步
+            if request.sync_type == "incremental":
+                sync_func = sync_instance.sync_incremental
+                args = ()
+                kwargs = {}
+            else:
+                sync_func = sync_instance.sync_full
+                args = ()
+                kwargs = {}
         else:
-            # 增量同步
+            # 行情表：增量同步
             sync_func = sync_instance.sync_incremental
             args = ()
             kwargs = {

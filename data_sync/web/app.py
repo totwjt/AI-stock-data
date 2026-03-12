@@ -97,6 +97,17 @@ def create_app():
                     }
                     .sync-btn:hover { background-color: #45a049; }
                     .sync-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
+                    .resync-btn { 
+                        background-color: #2196F3; 
+                        color: white; 
+                        border: none; 
+                        padding: 5px 10px; 
+                        cursor: pointer; 
+                        border-radius: 3px;
+                        font-size: 12px;
+                        margin-left: 5px;
+                    }
+                    .resync-btn:hover { background-color: #1976D2; }
                     .status-pending { color: #ff9800; }
                     .status-running { color: #2196F3; }
                     .status-completed { color: #4CAF50; }
@@ -168,6 +179,40 @@ def create_app():
                         }, 2000);
                     }
                     
+                    async function resyncTable(tableName) {
+                        const btn = document.getElementById('resync-' + tableName);
+                        const status = document.getElementById('status-' + tableName);
+                        
+                        btn.disabled = true;
+                        btn.textContent = '重新同步中...';
+                        status.textContent = '重新同步中';
+                        status.className = 'status-running';
+                        
+                        try {
+                            const response = await fetch('/api/sync/' + tableName, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({sync_type: 'incremental'})
+                            });
+                            
+                            const data = await response.json();
+                            
+                            if (response.ok) {
+                                pollStatus(tableName, data.task_id);
+                            } else {
+                                status.textContent = '失败: ' + data.detail;
+                                status.className = 'status-failed';
+                                btn.disabled = false;
+                                btn.textContent = '重新同步';
+                            }
+                        } catch (error) {
+                            status.textContent = '请求失败: ' + error;
+                            status.className = 'status-failed';
+                            btn.disabled = false;
+                            btn.textContent = '重新同步';
+                        }
+                    }
+                    
                     function showTableDesc(tableName) {
                         const descDiv = document.getElementById('desc-' + tableName);
                         if (descDiv.style.display === 'none') {
@@ -221,6 +266,11 @@ def create_app():
                         fields_html += f"<br>... 还有 {len(desc.get('fields', [])) - 5} 个字段"
                     desc_detail = f'<div id="desc-{sync_task_name}" class="desc" style="display:none;">{fields_html}</div>'
                 
+                # 对于基础表，添加重新同步按钮
+                resync_btn = ""
+                if sync_task_name in ["stock_basic", "trade_calendar"]:
+                    resync_btn = f'<button id="resync-{sync_task_name}" class="resync-btn" onclick="resyncTable(\'{sync_task_name}\')">重新同步</button>'
+                
                 html += f"""
                     <tr>
                         <td>{table_name}</td>
@@ -233,7 +283,7 @@ def create_app():
                             <a href="/table/{table_name}">浏览数据</a> |
                             <a href="/schema/{table_name}">查看结构</a>
                         </td>
-                        <td>{sync_btn}</td>
+                        <td>{sync_btn}{resync_btn}</td>
                         <td id="{status_id}">-</td>
                     </tr>
                 """
