@@ -8,6 +8,7 @@
 - 浏览所有表
 - 查看表结构（列名、类型、主键等）
 - 浏览表数据（前100条）
+- **表描述**：显示每个表的中文名称、详细描述和字段说明
 
 ### 同步功能
 - 首页表列表显示同步按钮
@@ -76,6 +77,22 @@ python run.py
 - URL: `GET /api/sync/tables`
 - 返回: 可同步的表名列表及同步类型
 
+#### 获取表描述
+- URL: `GET /api/sync/descriptions`
+- 返回: 所有表的描述信息（中文名称、详细描述、字段说明）
+- 示例:
+  ```bash
+  curl http://localhost:8001/api/sync/descriptions
+  ```
+
+#### 获取指定表描述
+- URL: `GET /api/sync/descriptions/{table_name}`
+- 返回: 指定表的描述信息
+- 示例:
+  ```bash
+  curl http://localhost:8001/api/sync/descriptions/stock_basic
+  ```
+
 ## 同步类型
 
 | 表名 | 同步类型 | 说明 |
@@ -116,10 +133,16 @@ python run.py
 - 集成现有的同步任务逻辑
 - 支持全量和增量同步
 
+### 表描述管理器 (table_descriptions.py)
+- 定义每个表的中文名称、详细描述和字段说明
+- 提供表元数据查询接口
+- 支持字段类型、主键标识等详细信息
+
 ### Web 界面 (app.py)
 - 前端 JavaScript 实现状态轮询
 - 实时更新同步状态
 - 用户友好的按钮和状态指示
+- 表描述显示和展开/收起功能
 
 ## 注意事项
 
