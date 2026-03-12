@@ -4,3 +4,4 @@ venv/
 data/
 .env
 *.db
+data_sync/logs/

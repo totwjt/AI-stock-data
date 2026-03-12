@@ -82,6 +82,7 @@ echo -e "${YELLOW}步骤 5: 启动应用...${NC}"
 echo "应用日志: $LOG_FILE"
 echo "访问地址: http://localhost:$PORT"
 echo "API测试页面: http://localhost:$PORT/api-tester"
+echo "按 Ctrl+C 停止应用"
 echo ""
 
 # 清理旧日志
@@ -89,6 +90,10 @@ echo ""
 
 # 启动应用
 "$VENV_PATH" -m "$APP_MODULE" > "$LOG_FILE" 2>&1 &
+
+# 保存进程PID
+APP_PID=$!
+echo "应用进程PID: $APP_PID"
 
 # 等待应用启动
 sleep 3
@@ -102,6 +107,14 @@ if ps aux | grep -v grep | grep -q "$APP_MODULE"; then
     echo ""
     echo -e "${GREEN}=== 启动完成 ===${NC}"
     echo "访问 http://localhost:$PORT 查看应用"
+    echo ""
+    
+    # 等待用户中断
+    echo "应用正在运行...按 Ctrl+C 停止"
+    trap "echo -e '\n${YELLOW}正在停止应用...${NC}'; kill $APP_PID 2>/dev/null; echo -e '${GREEN}应用已停止${NC}'; exit 0" INT TERM
+    
+    # 等待进程结束
+    wait $APP_PID
 else
     echo -e "${RED}✗ 应用启动失败！${NC}"
     echo "错误日志："

@@ -1,13 +1,64 @@
 # Ai-TuShare 股票数据API服务
 
-基于Tushare Pro的股票数据API服务，提供股票基础信息和技术指标接口，带有Web看板监控。
+## 项目概述
+
+基于Tushare Pro的股票数据API服务，提供股票基础信息和技术指标接口，带有Web看板监控。本项目专为AI开发优化，提供完整的项目上下文和开发指南。
+
+### 项目定位
+- **数据服务层**: 提供标准化的股票数据API接口
+- **AI开发友好**: 完整的项目文档、API说明和开发规范
+- **监控看板**: 实时监控API调用情况和系统状态
 
 ## 技术栈
 
 - **Web框架**: FastAPI
-- **数据库**: SQLite (aiosqlite)
-- **数据源**: Tushare Pro
-- **前端**: 原生HTML/CSS/JavaScript
+- **数据库**: SQLite (aiosqlite) - 用于API日志和缓存
+- **数据源**: Tushare Pro - 股票数据源
+- **前端**: 原生HTML/CSS/JavaScript - Web看板
+- **数据同步**: PostgreSQL - 用于大规模数据存储（可选模块）
+
+## 项目架构
+
+```
+Ai-TuShare/
+├── app/                    # FastAPI应用
+│   ├── main.py            # 应用入口
+│   ├── config.py          # 配置管理
+│   ├── database.py        # 数据库连接
+│   ├── tushare_client.py  # Tushare客户端封装
+│   ├── middleware/        # 中间件
+│   ├── models/            # 数据模型
+│   └── routers/           # API路由
+├── static/                # 静态资源
+├── data/                  # 数据库文件
+├── data_sync/             # 数据同步模块
+├── docs/                  # 文档
+├── start.sh               # 启动脚本
+└── requirements.txt       # 依赖包
+```
+
+## 开发规范
+
+### 代码风格
+- 使用Python类型提示
+- 遵循PEP 8规范
+- 函数命名使用snake_case
+- 类命名使用CamelCase
+
+### AI开发提示
+- 所有数据访问通过API接口进行
+- 禁止直接调用Tushare API（数据同步模块除外）
+- 使用PostgreSQL数据库进行大规模数据存储
+- API响应格式统一为JSON
+
+### 项目配置
+配置文件位于 `app/config.py`，支持环境变量覆盖：
+
+```python
+TUSHARE_TOKEN = "你的token"
+TUSHARE_URL = "http://lianghua.nanyangqiankun.top"
+DATABASE_URL = "sqlite+aiosqlite:///data/app.db"
+```
 
 ## 项目结构
 
@@ -133,7 +184,40 @@ TUSHARE_URL = "http://lianghua.nanyangqiankun.top"
 DATABASE_URL = "sqlite+aiosqlite:///data/app.db"
 ```
 
+## 数据同步模块
+
+项目包含数据同步模块，可将 Tushare 数据同步到 PostgreSQL 数据库。
+
+### 同步模块结构
+
+```
+data_sync/
+├── config.py              配置管理
+├── database.py            PostgreSQL连接
+├── models/                数据库模型
+├── sync/                  同步任务
+├── scheduler/             定时任务
+├── sync_runner.py         同步入口脚本
+└── test_sync.py           测试脚本
+```
+
+### 使用方法
+
+```bash
+# 同步股票基础信息
+python -m data_sync.sync_runner stock_basic
+
+# 同步日线行情（增量）
+python -m data_sync.sync_runner daily --start_date 20250101 --end_date 20250131
+
+# 启动定时任务
+python -m data_sync.scheduler.scheduler
+```
+
+详细说明见 `data_sync/README.md`
+
 ## 注意事项
 
 - 技术因子接口 `stk_factor_pro` 需要Tushare专业版积分
 - 默认端口8000，如需更改修改 `app/main.py`
+- 数据同步模块需要 PostgreSQL 数据库
