@@ -118,6 +118,21 @@ data_sync/
 3. **Tushare Token**: 需要有效的 Tushare Pro Token
 4. **数据量**: 日线数据量较大，建议分批同步
 
+### 表名映射说明
+
+同步任务名称与数据库表名的映射关系：
+
+| 同步任务名称 | 数据库表名 | 说明 |
+|--------------|------------|------|
+| stock_basic | stock_basic | 股票基础信息 |
+| trade_calendar | trade_calendar | 交易日历 |
+| daily | stock_daily | 日线行情 |
+| adj_factor | stock_adj_factor | 复权因子 |
+| daily_basic | stock_daily_basic | 每日指标 |
+| index_daily | index_daily | 指数行情 |
+
+**注意**: Web界面显示的是数据库表名，但同步API使用的是同步任务名称。
+
 ## 下一步
 
 1. 配置 PostgreSQL 数据库

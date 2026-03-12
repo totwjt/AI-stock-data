@@ -49,8 +49,17 @@ def create_app():
             await conn.close()
 
             # 获取可同步的表列表
-            syncable_tables = ["stock_basic", "trade_calendar", "daily", 
-                               "adj_factor", "daily_basic", "index_daily"]
+            # 注意：同步任务名称与数据库表名的映射
+            sync_task_to_table = {
+                "stock_basic": "stock_basic",
+                "trade_calendar": "trade_calendar",
+                "daily": "stock_daily",
+                "adj_factor": "stock_adj_factor",
+                "daily_basic": "stock_daily_basic",
+                "index_daily": "index_daily",
+            }
+            syncable_tables = list(sync_task_to_table.keys())
+            table_to_sync_task = {v: k for k, v in sync_task_to_table.items()}
             
             # 获取表描述信息
             try:
@@ -58,7 +67,7 @@ def create_app():
                 async with httpx.AsyncClient() as client:
                     response = await client.get("http://localhost:8001/api/sync/descriptions")
                     descriptions = response.json()
-                    # 转换为字典以便查找
+                    # 转换为字典以便查找（使用同步任务名称）
                     desc_dict = {d["name"]: d for d in descriptions}
             except:
                 desc_dict = {}
@@ -184,14 +193,24 @@ def create_app():
 
             for row in tables:
                 table_name = row["table_name"]
-                is_syncable = table_name in syncable_tables
-                sync_btn = f'<button id="sync-{table_name}" class="sync-btn" onclick="startSync(\'{table_name}\')">同步</button>' if is_syncable else 'N/A'
                 
-                # 获取表描述
+                # 获取对应的同步任务名称
+                sync_task_name = table_to_sync_task.get(table_name)
+                is_syncable = sync_task_name is not None
+                
+                # 同步按钮使用同步任务名称
+                if is_syncable:
+                    sync_btn = f'<button id="sync-{sync_task_name}" class="sync-btn" onclick="startSync(\'{sync_task_name}\')">同步</button>'
+                    status_id = f"status-{sync_task_name}"
+                else:
+                    sync_btn = 'N/A'
+                    status_id = f"status-{table_name}"
+                
+                # 获取表描述（使用同步任务名称）
                 desc_text = "-"
                 desc_detail = ""
-                if table_name in desc_dict:
-                    desc = desc_dict[table_name]
+                if sync_task_name and sync_task_name in desc_dict:
+                    desc = desc_dict[sync_task_name]
                     desc_text = desc.get("description", "-")
                     # 构建字段列表
                     fields_html = "<br>".join([
@@ -200,7 +219,7 @@ def create_app():
                     ])
                     if len(desc.get("fields", [])) > 5:
                         fields_html += f"<br>... 还有 {len(desc.get('fields', [])) - 5} 个字段"
-                    desc_detail = f'<div id="desc-{table_name}" class="desc" style="display:none;">{fields_html}</div>'
+                    desc_detail = f'<div id="desc-{sync_task_name}" class="desc" style="display:none;">{fields_html}</div>'
                 
                 html += f"""
                     <tr>
@@ -208,14 +227,14 @@ def create_app():
                         <td>
                             {desc_text}
                             {desc_detail}
-                            <a href="javascript:void(0)" onclick="showTableDesc('{table_name}')">查看详情</a>
+                            {f'<a href="javascript:void(0)" onclick="showTableDesc(\'{sync_task_name}\')">查看详情</a>' if sync_task_name else ''}
                         </td>
                         <td>
                             <a href="/table/{table_name}">浏览数据</a> |
                             <a href="/schema/{table_name}">查看结构</a>
                         </td>
                         <td>{sync_btn}</td>
-                        <td id="status-{table_name}">-</td>
+                        <td id="{status_id}">-</td>
                     </tr>
                 """
 

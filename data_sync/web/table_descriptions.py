@@ -26,7 +26,7 @@ class TableDescription:
     sync_type: str  # "full" 或 "incremental"
 
 
-# 表描述配置 (使用实际表名)
+# 表描述配置
 TABLE_DESCRIPTIONS: Dict[str, TableDescription] = {
     "stock_basic": TableDescription(
         name="stock_basic",
@@ -57,7 +57,7 @@ TABLE_DESCRIPTIONS: Dict[str, TableDescription] = {
     ),
     "daily": TableDescription(
         name="daily",
-        description="股票日线行情表，记录每日的开盘价、收盘价、成交量等",
+        description="股票日线行情表（stock_daily），记录每日的开盘价、收盘价、成交量等",
         fields=[
             FieldDescription("ts_code", "VARCHAR(20)", "股票代码", True),
             FieldDescription("trade_date", "VARCHAR(10)", "交易日期", True),
@@ -75,7 +75,7 @@ TABLE_DESCRIPTIONS: Dict[str, TableDescription] = {
     ),
     "adj_factor": TableDescription(
         name="adj_factor",
-        description="股票复权因子表，记录每日的复权因子",
+        description="股票复权因子表（stock_adj_factor），记录每日的复权因子",
         fields=[
             FieldDescription("ts_code", "VARCHAR(20)", "股票代码", True),
             FieldDescription("trade_date", "VARCHAR(10)", "交易日期", True),
@@ -85,7 +85,7 @@ TABLE_DESCRIPTIONS: Dict[str, TableDescription] = {
     ),
     "daily_basic": TableDescription(
         name="daily_basic",
-        description="股票每日基本面指标表，包含市盈率、市净率等指标",
+        description="股票每日基本面指标表（stock_daily_basic），包含市盈率、市净率等指标",
         fields=[
             FieldDescription("ts_code", "VARCHAR(20)", "股票代码", True),
             FieldDescription("trade_date", "VARCHAR(10)", "交易日期", True),
