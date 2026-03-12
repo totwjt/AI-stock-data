@@ -29,6 +29,10 @@ async def get_db_connection():
 def create_app():
     """创建 Web 查询应用"""
     app = FastAPI(title="PostgreSQL Web Query", description="查询 PostgreSQL 数据库的 Web 界面")
+    
+    # 导入并包含同步API路由
+    from .sync_api import router as sync_router
+    app.include_router(sync_router)
 
     @app.get("/", response_class=HTMLResponse)
     async def index():
@@ -44,6 +48,10 @@ def create_app():
             """)
             await conn.close()
 
+            # 获取可同步的表列表
+            syncable_tables = ["stock_basic", "trade_calendar", "daily", 
+                               "adj_factor", "daily_basic", "index_daily"]
+            
             html = """
             <!DOCTYPE html>
             <html>
@@ -52,13 +60,93 @@ def create_app():
                 <style>
                     body { font-family: Arial, sans-serif; margin: 20px; }
                     h1 { color: #333; }
-                    table { border-collapse: collapse; width: 100%; max-width: 800px; }
+                    table { border-collapse: collapse; width: 100%; max-width: 1000px; }
                     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                     th { background-color: #f2f2f2; }
                     tr:hover { background-color: #f5f5f5; }
                     a { color: #0066cc; text-decoration: none; }
                     a:hover { text-decoration: underline; }
+                    .sync-btn { 
+                        background-color: #4CAF50; 
+                        color: white; 
+                        border: none; 
+                        padding: 5px 10px; 
+                        cursor: pointer; 
+                        border-radius: 3px;
+                        font-size: 12px;
+                    }
+                    .sync-btn:hover { background-color: #45a049; }
+                    .sync-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
+                    .status-pending { color: #ff9800; }
+                    .status-running { color: #2196F3; }
+                    .status-completed { color: #4CAF50; }
+                    .status-failed { color: #f44336; }
                 </style>
+                <script>
+                    async function startSync(tableName) {
+                        const btn = document.getElementById('sync-' + tableName);
+                        const status = document.getElementById('status-' + tableName);
+                        
+                        btn.disabled = true;
+                        btn.textContent = '同步中...';
+                        status.textContent = '同步中';
+                        status.className = 'status-running';
+                        
+                        try {
+                            const response = await fetch('/api/sync/' + tableName, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'}
+                            });
+                            
+                            const data = await response.json();
+                            
+                            if (response.ok) {
+                                // 轮询查询状态
+                                pollStatus(tableName, data.task_id);
+                            } else {
+                                status.textContent = '失败: ' + data.detail;
+                                status.className = 'status-failed';
+                                btn.disabled = false;
+                                btn.textContent = '同步';
+                            }
+                        } catch (error) {
+                            status.textContent = '请求失败: ' + error;
+                            status.className = 'status-failed';
+                            btn.disabled = false;
+                            btn.textContent = '同步';
+                        }
+                    }
+                    
+                    async function pollStatus(tableName, taskId) {
+                        const btn = document.getElementById('sync-' + tableName);
+                        const status = document.getElementById('status-' + tableName);
+                        
+                        const interval = setInterval(async () => {
+                            try {
+                                const response = await fetch('/api/sync/status/' + taskId);
+                                const data = await response.json();
+                                
+                                if (data.status === 'completed') {
+                                    status.textContent = '完成 (' + data.records_count + ' 条)';
+                                    status.className = 'status-completed';
+                                    btn.disabled = false;
+                                    btn.textContent = '同步';
+                                    clearInterval(interval);
+                                } else if (data.status === 'failed') {
+                                    status.textContent = '失败: ' + data.error_message;
+                                    status.className = 'status-failed';
+                                    btn.disabled = false;
+                                    btn.textContent = '同步';
+                                    clearInterval(interval);
+                                } else if (data.status === 'running') {
+                                    status.textContent = '同步中... ' + data.progress + '%';
+                                }
+                            } catch (error) {
+                                clearInterval(interval);
+                            }
+                        }, 2000);
+                    }
+                </script>
             </head>
             <body>
                 <h1>PostgreSQL 数据库查询</h1>
@@ -67,11 +155,16 @@ def create_app():
                     <tr>
                         <th>表名</th>
                         <th>操作</th>
+                        <th>同步</th>
+                        <th>状态</th>
                     </tr>
             """
 
             for row in tables:
                 table_name = row["table_name"]
+                is_syncable = table_name in syncable_tables
+                sync_btn = f'<button id="sync-{table_name}" class="sync-btn" onclick="startSync(\'{table_name}\')">同步</button>' if is_syncable else 'N/A'
+                
                 html += f"""
                     <tr>
                         <td>{table_name}</td>
@@ -79,11 +172,14 @@ def create_app():
                             <a href="/table/{table_name}">浏览数据</a> |
                             <a href="/schema/{table_name}">查看结构</a>
                         </td>
+                        <td>{sync_btn}</td>
+                        <td id="status-{table_name}">-</td>
                     </tr>
                 """
 
             html += """
                 </table>
+                <p>说明：绿色按钮表示可同步的表，增量同步默认最近30天数据。</p>
             </body>
             </html>
             """
