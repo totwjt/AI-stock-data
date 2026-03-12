@@ -73,7 +73,14 @@ class DataSyncScheduler:
                 sync = IndexDailySync(db)
                 start_date = (datetime.now() - datetime.timedelta(days=30)).strftime("%Y%m%d")
                 end_date = datetime.now().strftime("%Y%m%d")
-                await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+                # 同步主要指数：上证指数、深证成指、创业板指、沪深300
+                index_codes = ["000001.SH", "399001.SZ", "399006.SZ", "000300.SH"]
+                for ts_code in index_codes:
+                    try:
+                        await sync.sync_with_retry(sync.sync_incremental, start_date, end_date, ts_code=ts_code)
+                        self.logger.info(f"指数 {ts_code} 同步完成")
+                    except Exception as e:
+                        self.logger.warning(f"指数 {ts_code} 同步失败: {str(e)}")
             self.logger.info("指数行情同步任务完成")
         except Exception as e:
             self.logger.error(f"指数行情同步任务失败: {str(e)}")

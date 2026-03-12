@@ -84,9 +84,9 @@ class AdjFactorSync(BaseSync):
             raise
     
     async def _get_listed_stock_codes(self) -> List[str]:
-        """获取上市股票列表（list_status = 'L'）"""
+        """获取股票列表（包括所有股票，因为list_status可能为空）"""
         result = await self.db.execute(
-            select(StockBasic.ts_code).where(StockBasic.list_status == 'L')
+            select(StockBasic.ts_code)
         )
         return [row[0] for row in result.fetchall()]
     
