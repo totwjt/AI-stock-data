@@ -115,6 +115,26 @@ Ai-TuShare/
 
 ## 快速启动
 
+### 使用启动脚本（推荐）
+
+```bash
+# 启动股票API服务
+./start.sh app
+
+# 启动Web查询界面
+./start.sh web
+
+# 启动所有模块
+./start.sh all
+
+# 查看帮助
+./start.sh --help
+```
+
+详细说明见 [START_SCRIPT.md](START_SCRIPT.md)
+
+### 手动启动
+
 ```bash
 # 1. 创建虚拟环境
 python -m venv venv
