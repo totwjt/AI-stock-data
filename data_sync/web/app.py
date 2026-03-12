@@ -1,0 +1,289 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+import asyncpg
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# 数据库配置
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", 5432))
+DB_NAME = os.getenv("DB_NAME", "tushare_sync")
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+
+
+async def get_db_connection():
+    """获取数据库连接"""
+    return await asyncpg.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        database=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD
+    )
+
+
+def create_app():
+    """创建 Web 查询应用"""
+    app = FastAPI(title="PostgreSQL Web Query", description="查询 PostgreSQL 数据库的 Web 界面")
+
+    @app.get("/", response_class=HTMLResponse)
+    async def index():
+        """首页 - 显示可用的表"""
+        try:
+            conn = await get_db_connection()
+            # 查询所有表
+            tables = await conn.fetch("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                ORDER BY table_name
+            """)
+            await conn.close()
+
+            html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>PostgreSQL Web Query</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    h1 { color: #333; }
+                    table { border-collapse: collapse; width: 100%; max-width: 800px; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    th { background-color: #f2f2f2; }
+                    tr:hover { background-color: #f5f5f5; }
+                    a { color: #0066cc; text-decoration: none; }
+                    a:hover { text-decoration: underline; }
+                </style>
+            </head>
+            <body>
+                <h1>PostgreSQL 数据库查询</h1>
+                <p>可用的数据表：</p>
+                <table>
+                    <tr>
+                        <th>表名</th>
+                        <th>操作</th>
+                    </tr>
+            """
+
+            for row in tables:
+                table_name = row["table_name"]
+                html += f"""
+                    <tr>
+                        <td>{table_name}</td>
+                        <td>
+                            <a href="/table/{table_name}">浏览数据</a> |
+                            <a href="/schema/{table_name}">查看结构</a>
+                        </td>
+                    </tr>
+                """
+
+            html += """
+                </table>
+            </body>
+            </html>
+            """
+
+            return HTMLResponse(content=html)
+
+        except Exception as e:
+            return HTMLResponse(content=f"<h1>错误</h1><p>无法连接数据库: {str(e)}</p>", status_code=500)
+
+    @app.get("/table/{table_name}")
+    async def browse_table(table_name: str, limit: int = 100):
+        """浏览表数据"""
+        try:
+            conn = await get_db_connection()
+
+            # 检查表是否存在
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = $1
+                )
+            """, table_name)
+
+            if not table_exists:
+                await conn.close()
+                raise HTTPException(status_code=404, detail=f"表 {table_name} 不存在")
+
+            # 获取列信息
+            columns = await conn.fetch("""
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'public' 
+                AND table_name = $1
+                ORDER BY ordinal_position
+            """, table_name)
+
+            # 获取数据
+            data = await conn.fetch(f"SELECT * FROM {table_name} LIMIT $1", limit)
+            await conn.close()
+
+            html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>表 {table_name} 数据</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                    h1 {{ color: #333; }}
+                    table {{ border-collapse: collapse; width: 100%; }}
+                    th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                    th {{ background-color: #f2f2f2; }}
+                    tr:hover {{ background-color: #f5f5f5; }}
+                    a {{ color: #0066cc; text-decoration: none; }}
+                    .nav {{ margin-bottom: 20px; }}
+                </style>
+            </head>
+            <body>
+                <div class="nav">
+                    <a href="/">← 返回首页</a> |
+                    <a href="/schema/{table_name}">查看结构</a>
+                </div>
+                <h1>表 {table_name} 数据 (最多 {limit} 条)</h1>
+                <table>
+                    <tr>
+            """
+
+            # 表头
+            for col in columns:
+                html += f"<th>{col['column_name']}<br><small>{col['data_type']}</small></th>"
+            html += "</tr>"
+
+            # 数据行
+            for row in data:
+                html += "<tr>"
+                for col in columns:
+                    value = row.get(col['column_name'], '')
+                    html += f"<td>{value}</td>"
+                html += "</tr>"
+
+            html += """
+                </table>
+                <p>显示最多 100 条数据</p>
+            </body>
+            </html>
+            """
+
+            return HTMLResponse(content=html)
+
+        except Exception as e:
+            return HTMLResponse(content=f"<h1>错误</h1><p>查询失败: {str(e)}</p>", status_code=500)
+
+    @app.get("/schema/{table_name}")
+    async def show_schema(table_name: str):
+        """显示表结构"""
+        try:
+            conn = await get_db_connection()
+
+            # 检查表是否存在
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = $1
+                )
+            """, table_name)
+
+            if not table_exists:
+                await conn.close()
+                raise HTTPException(status_code=404, detail=f"表 {table_name} 不存在")
+
+            # 获取列信息
+            columns = await conn.fetch("""
+                SELECT 
+                    column_name,
+                    data_type,
+                    is_nullable,
+                    column_default
+                FROM information_schema.columns
+                WHERE table_schema = 'public' 
+                AND table_name = $1
+                ORDER BY ordinal_position
+            """, table_name)
+
+            # 获取主键信息
+            primary_keys = await conn.fetch("""
+                SELECT kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                WHERE tc.table_schema = 'public'
+                    AND tc.table_name = $1
+                    AND tc.constraint_type = 'PRIMARY KEY'
+            """, table_name)
+
+            pk_columns = [row["column_name"] for row in primary_keys]
+
+            # 获取行数
+            row_count = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
+
+            await conn.close()
+
+            html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>表 {table_name} 结构</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                    h1 {{ color: #333; }}
+                    table {{ border-collapse: collapse; width: 100%; max-width: 800px; }}
+                    th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                    th {{ background-color: #f2f2f2; }}
+                    tr:hover {{ background-color: #f5f5f5; }}
+                    a {{ color: #0066cc; text-decoration: none; }}
+                    .nav {{ margin-bottom: 20px; }}
+                    .info {{ background-color: #f0f8ff; padding: 10px; margin-bottom: 20px; }}
+                </style>
+            </head>
+            <body>
+                <div class="nav">
+                    <a href="/">← 返回首页</a> |
+                    <a href="/table/{table_name}">浏览数据</a>
+                </div>
+                <h1>表 {table_name} 结构</h1>
+                <div class="info">
+                    <p><strong>行数:</strong> {row_count:,}</p>
+                    <p><strong>主键:</strong> {', '.join(pk_columns) if pk_columns else '无'}</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>数据类型</th>
+                        <th>可为空</th>
+                        <th>默认值</th>
+                        <th>是否主键</th>
+                    </tr>
+            """
+
+            for col in columns:
+                is_pk = "✓" if col["column_name"] in pk_columns else ""
+                html += f"""
+                    <tr>
+                        <td>{col["column_name"]}</td>
+                        <td>{col["data_type"]}</td>
+                        <td>{col["is_nullable"]}</td>
+                        <td>{col["column_default"] or ''}</td>
+                        <td>{is_pk}</td>
+                    </tr>
+                """
+
+            html += """
+                </table>
+            </body>
+            </html>
+            """
+
+            return HTMLResponse(content=html)
+
+        except Exception as e:
+            return HTMLResponse(content=f"<h1>错误</h1><p>查询失败: {str(e)}</p>", status_code=500)
+
+    return app

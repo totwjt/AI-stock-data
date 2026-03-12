@@ -1,6 +1,18 @@
 # 数据同步模块
 
-将 Tushare 数据同步到 PostgreSQL 数据库。
+将 Tushare 数据同步到 PostgreSQL 数据库，为策略系统提供数据基础设施。
+
+## 模块定位
+
+**data_sync** 是独立的数据同步模块，与主 API 服务（`app` 模块）分离：
+
+- **app 模块**: 实时股票数据 API + Web 看板（SQLite + 实时 Tushare API）
+- **data_sync 模块**: 历史数据同步 + PostgreSQL 存储 + Web 查询界面
+
+**数据流向**:
+```
+Tushare Pro (定时同步) → data_sync → PostgreSQL → 策略系统
+```
 
 ## 目录结构
 
@@ -10,7 +22,7 @@ data_sync/
 ├── config.py                配置管理
 ├── database.py              数据库连接
 ├── tushare_client.py        Tushare 客户端封装
-├── models/                  数据库模型
+├── models/                  数据库模型（PostgreSQL）
 │   ├── stock_basic.py       股票基础信息
 │   ├── stock_daily.py       日线行情
 │   ├── stock_adj_factor.py  复权因子
@@ -27,6 +39,8 @@ data_sync/
 │   └── sync_index_daily.py
 ├── scheduler/               定时任务
 │   └── scheduler.py
+├── repository/              数据访问层
+├── web/                     Web查询界面（待开发）
 ├── logs/                    日志目录
 ├── sync_runner.py           同步入口脚本
 ├── test_sync.py             测试脚本
@@ -132,6 +146,29 @@ python -m data_sync.test_sync
 | vol | FLOAT | 成交量 |
 | amount | FLOAT | 成交额 |
 
+## Web 查询功能
+
+已在 `data_sync/web/` 目录下开发 Web 查询界面，提供以下功能：
+
+- 表结构浏览
+- 数据浏览（前100条）
+- 同步状态监控（待开发）
+
+### 启动 Web 查询界面
+
+```bash
+cd data_sync/web
+python run.py
+```
+
+访问 http://localhost:8001
+
+### Web 界面功能
+
+1. **首页** (`/`): 显示所有表列表
+2. **浏览数据** (`/table/{table_name}`): 显示表的前100条数据
+3. **查看结构** (`/schema/{table_name}`): 显示表的列定义、主键、行数等信息
+
 ## 注意事项
 
 1. **数据库连接**: 确保 PostgreSQL 服务正常运行
@@ -145,3 +182,13 @@ python -m data_sync.test_sync
 - 自动重试机制：失败时会自动重试 3 次
 - 详细日志：所有同步操作都会记录到 `logs/data_sync.log`
 - 事务回滚：失败时自动回滚，保证数据一致性
+
+## 与主 API 服务的区别
+
+| 特性 | app 模块 | data_sync 模块 |
+|------|----------|----------------|
+| 功能 | 实时股票 API + Web 看板 | 历史数据同步 + Web 查询 |
+| 数据库 | SQLite | PostgreSQL |
+| 数据源 | Tushare Pro (实时) | Tushare Pro (定时) |
+| 端口 | 8000 | 待定 |
+| 用途 | 实时数据查询 | 历史数据分析

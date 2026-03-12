@@ -21,7 +21,7 @@
 
 ```
 Ai-TuShare/
-├── app/                    # FastAPI应用
+├── app/                    # FastAPI应用（股票API服务）
 │   ├── main.py            # 应用入口
 │   ├── config.py          # 配置管理
 │   ├── database.py        # 数据库连接
@@ -29,12 +29,39 @@ Ai-TuShare/
 │   ├── middleware/        # 中间件
 │   ├── models/            # 数据模型
 │   └── routers/           # API路由
-├── static/                # 静态资源
-├── data/                  # 数据库文件
-├── data_sync/             # 数据同步模块
+├── static/                # 静态资源（Web看板）
+├── data/                  # SQLite数据库文件（API日志）
+├── data_sync/             # 数据同步模块（PostgreSQL）
+│   ├── models/            # PostgreSQL数据模型
+│   ├── sync/              # 同步任务
+│   ├── scheduler/         # 定时任务
+│   ├── repository/        # 数据访问层
+│   ├── web/               # Web查询界面（待开发）
+│   └── sync_runner.py     # 同步入口脚本
 ├── docs/                  # 文档
 ├── start.sh               # 启动脚本
 └── requirements.txt       # 依赖包
+```
+
+## 模块说明
+
+### 1. app 模块（股票API服务）
+- **功能**: 提供股票数据API接口和Web看板
+- **数据库**: SQLite（用于API日志和缓存）
+- **数据源**: Tushare Pro（实时API调用）
+- **端口**: 8000
+- **访问地址**: http://localhost:8000
+
+### 2. data_sync 模块（数据同步）
+- **功能**: 将Tushare数据同步到PostgreSQL数据库
+- **数据库**: PostgreSQL（大规模数据存储）
+- **数据源**: Tushare Pro（定时同步）
+- **用途**: 为策略系统提供数据基础设施
+
+### 模块关系
+```
+Tushare Pro (实时API) → app模块 → SQLite (API日志)
+Tushare Pro (定时同步) → data_sync模块 → PostgreSQL (历史数据)
 ```
 
 ## 开发规范
