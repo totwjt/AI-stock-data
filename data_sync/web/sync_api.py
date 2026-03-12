@@ -116,8 +116,17 @@ async def start_sync(table_name: str, request: SyncRequest = SyncRequest()):
                 sync_func = sync_instance.sync_full
                 args = ()
                 kwargs = {}
+        elif table_name == "index_daily":
+            # 指数行情表：增量同步（自动同步多个主要指数）
+            sync_func = sync_instance.sync_incremental
+            args = ()
+            kwargs = {
+                "start_date": request.start_date,
+                "end_date": request.end_date,
+                "ts_code": None,  # 不指定时自动同步多个指数
+            }
         else:
-            # 行情表：增量同步
+            # 其他行情表：增量同步
             sync_func = sync_instance.sync_incremental
             args = ()
             kwargs = {
