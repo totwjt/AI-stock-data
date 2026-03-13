@@ -119,6 +119,18 @@ def create_app():
                         margin-left: 5px;
                     }
                     .resync-btn:hover { background-color: #1976D2; }
+                    .batch-sync-btn { 
+                        background-color: #9C27B0;
+                        color: white; 
+                        border: none; 
+                        padding: 5px 10px; 
+                        cursor: pointer; 
+                        border-radius: 3px;
+                        font-size: 12px;
+                        margin-left: 5px;
+                    }
+                    .batch-sync-btn:hover { background-color: #7B1FA2; }
+                    .batch-sync-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
                     .stop-btn { 
                         background-color: #f44336; 
                         color: white; 
@@ -261,6 +273,40 @@ def create_app():
                         }
                     }
                     
+                    async function batchSync(tableName) {
+                        const btn = document.getElementById('batch-' + tableName);
+                        const status = document.getElementById('status-' + tableName);
+                        
+                        btn.disabled = true;
+                        btn.textContent = '批量同步中...';
+                        status.textContent = '批量同步中';
+                        status.className = 'status-running';
+                        
+                        try {
+                            const response = await fetch('/api/sync/' + tableName, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({sync_type: 'history_by_year'})
+                            });
+                            
+                            const data = await response.json();
+                            
+                            if (response.ok) {
+                                pollStatus(tableName, data.task_id);
+                            } else {
+                                status.textContent = '失败: ' + data.detail;
+                                status.className = 'status-failed';
+                                btn.disabled = false;
+                                btn.textContent = '批量同步';
+                            }
+                        } catch (error) {
+                            status.textContent = '请求失败: ' + error;
+                            status.className = 'status-failed';
+                            btn.disabled = false;
+                            btn.textContent = '批量同步';
+                        }
+                    }
+                    
                     async function stopSync(tableName) {
                         const stopBtn = document.getElementById('stop-' + tableName);
                         const status = document.getElementById('status-' + tableName);
@@ -361,10 +407,12 @@ def create_app():
                         fields_html += f"<br>... 还有 {len(desc.get('fields', [])) - 5} 个字段"
                     desc_detail = f'<div id="desc-{sync_task_name}" class="desc" style="display:none;">{fields_html}</div>'
                 
-                # 对于基础表，添加重新同步按钮
                 resync_btn = ""
+                batch_sync_btn = ""
                 if sync_task_name in ["stock_basic", "trade_calendar"]:
                     resync_btn = f'<button id="resync-{sync_task_name}" class="resync-btn" onclick="resyncTable(\'{sync_task_name}\')">重新同步</button>'
+                elif sync_task_name == "stk_factor_pro":
+                    batch_sync_btn = f'<button id="batch-{sync_task_name}" class="batch-sync-btn" onclick="batchSync(\'{sync_task_name}\')">批量同步(10年)</button>'
                 
                 html += f"""
                     <tr>
@@ -378,7 +426,7 @@ def create_app():
                             <a href="/table/{table_name}">浏览数据</a> |
                             <a href="/schema/{table_name}">查看结构</a>
                         </td>
-                        <td>{sync_btn}{resync_btn}{stop_btn}</td>
+                        <td>{sync_btn}{resync_btn}{batch_sync_btn}{stop_btn}</td>
                         <td id="{status_id}">-</td>
                     </tr>
                 """

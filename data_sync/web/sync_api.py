@@ -118,11 +118,18 @@ async def start_sync(table_name: str, request: SyncRequest = SyncRequest()):
             "ts_code": None,
         }
     elif table_name == "stk_factor_pro":
-        sync_func_name = "sync_history_by_year"
-        func_kwargs = {
-            "start_year": None,
-            "end_year": None,
-        }
+        if request.sync_type == "history_by_year":
+            sync_func_name = "sync_history_by_year"
+            func_kwargs = {
+                "start_year": None,
+                "end_year": None,
+            }
+        else:
+            sync_func_name = "sync_history_by_year"
+            func_kwargs = {
+                "start_year": None,
+                "end_year": None,
+            }
     else:
         sync_func_name = "sync_incremental"
         func_kwargs = {
