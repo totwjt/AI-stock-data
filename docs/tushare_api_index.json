@@ -1,0 +1,17 @@
+[
+  {"api":"daily","name":"日线行情","doc":"https://tushare.pro/document/2?doc_id=27"},
+  {"api":"weekly","name":"周线行情","doc":"https://tushare.pro/document/2?doc_id=144"},
+  {"api":"monthly","name":"月线行情","doc":"https://tushare.pro/document/2?doc_id=145"},
+  {"api":"stk_factor_pro","name":"股票技术面因子","doc":"https://tushare.pro/document/2?doc_id=296"},
+  {"api":"daily_basic","name":"每日指标","doc":"https://tushare.pro/document/2?doc_id=32"},
+  {"api":"new_share","name":"IPO新股列表","doc":"https://tushare.pro/document/2?doc_id=26"},
+  {"api":"income","name":"利润表","doc":"https://tushare.pro/document/2?doc_id=33"},
+  {"api":"balancesheet","name":"资产负债表","doc":"https://tushare.pro/document/2?doc_id=36"},
+  {"api":"cashflow","name":"现金流量表","doc":"https://tushare.pro/document/2?doc_id=44"},
+  {"api":"stock_basic","name":"股票列表","doc":"https://tushare.pro/document/2?doc_id=25"},
+  {"api":"trade_cal","name":"交易日历","doc":"https://tushare.pro/document/2?doc_id=26"},
+  {"api":"adj_factor","name":"复权因子","doc":"https://tushare.pro/document/2?doc_id=28"},
+  {"api":"namechange","name":"股票名称变更","doc":"https://tushare.pro/document/2?doc_id=100"},
+  {"api":"suspend_d","name":"停复牌信息","doc":"https://tushare.pro/document/2?doc_id=214"},
+  {"api":"limit_list","name":"涨跌停信息","doc":"https://tushare.pro/document/2?doc_id=183"}
+]

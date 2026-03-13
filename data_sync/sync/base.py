@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from abc import ABC, abstractmethod
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import tuple_
 
 from data_sync.config import settings
 from data_sync.tushare_client import tushare_client
@@ -53,33 +54,62 @@ class BaseSync(ABC):
         """数据转换"""
         pass
     
-    async def upsert_data(self, data_list: list):
-        """UPSERT 数据到数据库"""
+    async def upsert_data(self, data_list: list, auto_commit: bool = True):
+        """UPSERT 数据到数据库
+        
+        Args:
+            data_list: 数据列表
+            auto_commit: 是否自动提交事务，默认为True
+                        设置为False时，需要在外部手动提交事务
+        """
         if not data_list:
             return 0
         
         model = self.get_table_model()
         table = model.__table__
         
-        insert_stmt = pg_insert(table).values(data_list)
-        
+        # 使用 ON CONFLICT DO UPDATE 进行 UPSERT
         primary_keys = [col.name for col in table.primary_key.columns]
         
-        update_dict = {
-            col.name: insert_stmt.excluded[col.name]
-            for col in table.columns
-            if col.name not in primary_keys and not col.name.endswith('_at')
-        }
+        # 去重：确保同一主键只出现一次
+        seen_keys = set()
+        deduplicated_data = []
+        for item in reversed(data_list):
+            key = tuple(item.get(pk) for pk in primary_keys)
+            if key not in seen_keys:
+                seen_keys.add(key)
+                deduplicated_data.append(item)
         
-        stmt = insert_stmt.on_conflict_do_update(
-            index_elements=primary_keys,
-            set_=update_dict
-        )
+        # 保持原始顺序
+        deduplicated_data = list(reversed(deduplicated_data))
         
-        await self.db.execute(stmt)
-        await self.db.commit()
+        # PostgreSQL 参数限制：32767
+        if deduplicated_data:
+            field_count = len(deduplicated_data[0])
+        else:
+            field_count = len(table.columns)
+        max_params = 32767
+        max_batch_size = (max_params // field_count) - 10
         
-        return len(data_list)
+        total_count = 0
+        
+        # 分批处理，避免超过 PostgreSQL 参数限制
+        for i in range(0, len(deduplicated_data), max_batch_size):
+            batch = deduplicated_data[i:i + max_batch_size]
+            
+            insert_stmt = pg_insert(table).values(batch)
+            
+            stmt = insert_stmt.on_conflict_do_nothing(
+                index_elements=primary_keys
+            )
+            
+            result = await self.db.execute(stmt)
+            total_count += result.rowcount if hasattr(result, 'rowcount') else len(batch)
+        
+        if auto_commit:
+            await self.db.commit()
+        
+        return total_count
     
     async def sync_full(self, **kwargs):
         """全量同步"""

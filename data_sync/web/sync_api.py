@@ -17,6 +17,7 @@ from data_sync.sync import (
     AdjFactorSync,
     DailyBasicSync,
     IndexDailySync,
+    StkFactorProSync,
 )
 from .sync_manager import sync_manager, SyncStatus
 from .table_descriptions import (
@@ -79,6 +80,7 @@ TABLE_SYNC_MAP = {
     "adj_factor": AdjFactorSync,
     "daily_basic": DailyBasicSync,
     "index_daily": IndexDailySync,
+    "stk_factor_pro": StkFactorProSync,
 }
 
 
@@ -100,52 +102,65 @@ async def start_sync(table_name: str, request: SyncRequest = SyncRequest()):
     # 初始化数据库
     await init_db()
     
-    # 创建数据库会话
-    async with async_session() as db:
-        sync_class = TABLE_SYNC_MAP[table_name]
-        sync_instance = sync_class(db)
-        
-        # 判断同步类型
-        if table_name in ["stock_basic", "trade_calendar"]:
-            # 基础表：支持全量和增量同步
-            if request.sync_type == "incremental":
-                sync_func = sync_instance.sync_incremental
-                args = ()
-                kwargs = {}
-            else:
-                sync_func = sync_instance.sync_full
-                args = ()
-                kwargs = {}
-        elif table_name == "index_daily":
-            # 指数行情表：增量同步（自动同步多个主要指数）
-            sync_func = sync_instance.sync_incremental
-            args = ()
-            kwargs = {
-                "start_date": request.start_date,
-                "end_date": request.end_date,
-                "ts_code": None,  # 不指定时自动同步多个指数
-            }
+    sync_class = TABLE_SYNC_MAP[table_name]
+    
+    if table_name in ["stock_basic", "trade_calendar"]:
+        if request.sync_type == "incremental":
+            sync_func_name = "sync_incremental"
         else:
-            # 其他行情表：增量同步
-            sync_func = sync_instance.sync_incremental
-            args = ()
-            kwargs = {
-                "start_date": request.start_date,
-                "end_date": request.end_date,
-            }
-        
-        # 提交同步任务
-        task_id = await sync_manager.submit_sync(
-            table_name=table_name,
-            sync_func=sync_func,
-            *args,
-            **kwargs
-        )
-        
-        return SyncResponse(
-            task_id=task_id,
-            message=f"同步任务已提交: {table_name}"
-        )
+            sync_func_name = "sync_full"
+        func_kwargs = {}
+    elif table_name == "index_daily":
+        sync_func_name = "sync_incremental"
+        func_kwargs = {
+            "start_date": request.start_date,
+            "end_date": request.end_date,
+            "ts_code": None,
+        }
+    elif table_name == "stk_factor_pro":
+        # 使用优化后的同步逻辑：按股票逐只增量同步
+        sync_func_name = "sync_stock"
+        func_kwargs = {
+            "start_date": request.start_date,
+            "end_date": request.end_date,
+        }
+    else:
+        sync_func_name = "sync_incremental"
+        func_kwargs = {
+            "start_date": request.start_date,
+            "end_date": request.end_date,
+        }
+    
+    async def sync_task_wrapper():
+        async with async_session() as db:
+            sync_instance = sync_class(db)
+            
+            if table_name == "stk_factor_pro":
+                # 按股票逐只同步（从 stock_basic 表读取股票列表，但不维护该表）
+                stock_codes = await sync_instance.get_stock_codes_to_sync()
+                total = 0
+                for i, ts_code in enumerate(stock_codes):
+                    try:
+                        count = await sync_instance.sync_stock(ts_code, **func_kwargs)
+                        total += count
+                        sync_instance.logger.info(f"[{i+1}/{len(stock_codes)}] {ts_code}: 累计 {total} 条")
+                    except Exception as e:
+                        sync_instance.logger.warning(f"[{i+1}/{len(stock_codes)}] {ts_code}: 同步失败 - {str(e)}")
+                        continue
+                return total
+            else:
+                sync_func = getattr(sync_instance, sync_func_name)
+                return await sync_func(**func_kwargs)
+    
+    task_id = await sync_manager.submit_sync(
+        table_name=table_name,
+        sync_func=sync_task_wrapper,
+    )
+    
+    return SyncResponse(
+        task_id=task_id,
+        message=f"同步任务已提交: {table_name}"
+    )
 
 
 @router.get("/status/{task_id}", response_model=TaskStatusResponse)
@@ -223,7 +238,7 @@ async def get_syncable_tables():
     return {
         "tables": list(TABLE_SYNC_MAP.keys()),
         "full_sync": ["stock_basic", "trade_calendar"],
-        "incremental_sync": ["daily", "adj_factor", "daily_basic", "index_daily"],
+        "incremental_sync": ["daily", "adj_factor", "daily_basic", "index_daily", "stk_factor_pro"],
     }
 
 

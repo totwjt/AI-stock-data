@@ -57,18 +57,29 @@ def create_app():
                 "adj_factor": "stock_adj_factor",
                 "daily_basic": "stock_daily_basic",
                 "index_daily": "index_daily",
+                "stk_factor_pro": "stock_factor_pro",
             }
             syncable_tables = list(sync_task_to_table.keys())
             table_to_sync_task = {v: k for k, v in sync_task_to_table.items()}
             
-            # 获取表描述信息
             try:
-                import httpx
-                async with httpx.AsyncClient() as client:
-                    response = await client.get("http://localhost:8001/api/sync/descriptions")
-                    descriptions = response.json()
-                    # 转换为字典以便查找（使用同步任务名称）
-                    desc_dict = {d["name"]: d for d in descriptions}
+                from .table_descriptions import get_all_table_descriptions
+                descriptions = get_all_table_descriptions()
+                desc_dict = {}
+                for desc in descriptions:
+                    desc_dict[desc.name] = {
+                        "name": desc.name,
+                        "description": desc.description,
+                        "fields": [
+                            {
+                                "name": f.name,
+                                "type": f.type,
+                                "description": f.description,
+                                "is_primary_key": f.is_primary_key
+                            }
+                            for f in desc.fields
+                        ]
+                    }
             except:
                 desc_dict = {}
             

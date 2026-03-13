@@ -13,6 +13,7 @@ sync_type:
     adj_factor      同步复权因子
     daily_basic     同步每日指标
     index_daily     同步指数行情
+    stk_factor_pro  同步技术面因子（专业版）
     all             同步所有数据
 
 options:
@@ -33,6 +34,7 @@ from data_sync.sync import (
     AdjFactorSync,
     DailyBasicSync,
     IndexDailySync,
+    StkFactorProSync,
 )
 
 
@@ -64,6 +66,9 @@ async def run_sync(sync_type: str, start_date: str = None, end_date: str = None)
         elif sync_type == "index_daily":
             sync = IndexDailySync(db)
             await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+        elif sync_type == "stk_factor_pro":
+            sync = StkFactorProSync(db)
+            await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
         elif sync_type == "all":
             await run_sync("stock_basic", start_date, end_date)
             await run_sync("trade_cal", start_date, end_date)
@@ -71,6 +76,7 @@ async def run_sync(sync_type: str, start_date: str = None, end_date: str = None)
             await run_sync("adj_factor", start_date, end_date)
             await run_sync("daily_basic", start_date, end_date)
             await run_sync("index_daily", start_date, end_date)
+            await run_sync("stk_factor_pro", start_date, end_date)
         else:
             raise ValueError(f"未知的同步类型: {sync_type}")
 
@@ -80,7 +86,7 @@ def main():
     parser.add_argument(
         "sync_type",
         choices=["full", "incremental", "stock_basic", "trade_cal", "daily", 
-                 "adj_factor", "daily_basic", "index_daily", "all"],
+                 "adj_factor", "daily_basic", "index_daily", "stk_factor_pro", "all"],
         help="同步类型"
     )
     parser.add_argument("--start_date", help="开始日期 YYYYMMDD")

@@ -126,6 +126,43 @@ TABLE_DESCRIPTIONS: Dict[str, TableDescription] = {
         ],
         sync_type="incremental"
     ),
+    "stk_factor_pro": TableDescription(
+        name="stk_factor_pro",
+        description="股票技术面因子表（专业版），包含MACD、KDJ、RSI等大量技术指标",
+        fields=[
+            FieldDescription("ts_code", "VARCHAR(20)", "股票代码", True),
+            FieldDescription("trade_date", "VARCHAR(10)", "交易日期", True),
+            FieldDescription("close", "FLOAT", "收盘价"),
+            FieldDescription("macd", "FLOAT", "MACD指标"),
+            FieldDescription("kdj_k", "FLOAT", "KDJ-K值"),
+            FieldDescription("rsi_6", "FLOAT", "RSI-6日"),
+            FieldDescription("boll_upper", "FLOAT", "布林带上轨"),
+            FieldDescription("atr", "FLOAT", "平均真实波幅"),
+            FieldDescription("cci", "FLOAT", "顺势指标"),
+            FieldDescription("bbi", "FLOAT", "多空指标"),
+            FieldDescription("obv", "FLOAT", "能量潮"),
+        ],
+        sync_type="incremental"
+    ),
+    "stk_factor_pro_history": TableDescription(
+        name="stk_factor_pro_history",
+        description="股票技术面因子表（历史数据），按年份分段同步",
+        fields=[
+            FieldDescription("ts_code", "VARCHAR(20)", "股票代码", True),
+            FieldDescription("trade_date", "VARCHAR(10)", "交易日期", True),
+            FieldDescription("year", "INTEGER", "年份（用于分区）"),
+        ],
+        sync_type="incremental"
+    ),
+    "stk_factor_pro_daily": TableDescription(
+        name="stk_factor_pro_daily",
+        description="股票技术面因子表（每日增量），按交易日期同步全部股票",
+        fields=[
+            FieldDescription("ts_code", "VARCHAR(20)", "股票代码", True),
+            FieldDescription("trade_date", "VARCHAR(10)", "交易日期", True),
+        ],
+        sync_type="incremental"
+    ),
 }
 
 

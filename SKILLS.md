@@ -5,6 +5,14 @@
 ### tushare-reference
 项目基于Tushare Pro数据接口，官方文档地址：https://tushare.pro/document/2
 
+**文档 URL 检索规则**：
+1. **优先查看本地索引**：检索 API 文档 URL 时，首先查看 `docs/tushare_api_index.json` 文件
+2. **索引文件位置**：`/Users/wangjiangtao/Documents/AI/Ai-TuShare/docs/tushare_api_index.json`
+3. **索引格式**：JSON 数组，每个元素包含 `api`、`name`、`doc` 三个字段
+4. **未找到处理**：如果在本地索引中未找到该接口，请先补充到 `tushare_api_index.json` 文件中
+5. **补充方法**：添加新条目 `{ "api": "接口名", "name": "接口中文名", "doc": "官方文档URL" }`
+6. **详细说明**：参见 `docs/ai_prompt_documentation.md`
+
 **常用接口文档**：
 - 股票列表: https://tushare.pro/document/2?doc_id=25
 - 日线行情: https://tushare.pro/document/2?doc_id=27

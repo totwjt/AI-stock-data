@@ -53,6 +53,10 @@ class TushareClient:
     def get_index_daily(self, **kwargs):
         """获取指数行情"""
         return self.pro.index_daily(**kwargs)
+    
+    def get_stk_factor_pro(self, **kwargs):
+        """获取技术面因子（专业版）"""
+        return self.pro.stk_factor_pro(**kwargs)
 
 
 # 全局实例

@@ -265,6 +265,5 @@ python -m data_sync.scheduler.scheduler
 
 ## 注意事项
 
-- 技术因子接口 `stk_factor_pro` 需要Tushare专业版积分
 - 默认端口8000，如需更改修改 `app/main.py`
 - 数据同步模块需要 PostgreSQL 数据库

@@ -25,6 +25,7 @@ from .models import (
     StockDailyBasic,
     IndexDaily,
     TradeCalendar,
+    StockFactorPro,
 )
 
 

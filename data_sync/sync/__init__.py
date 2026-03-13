@@ -5,6 +5,8 @@ from .sync_daily import DailySync
 from .sync_adj_factor import AdjFactorSync
 from .sync_daily_basic import DailyBasicSync
 from .sync_index_daily import IndexDailySync
+from .sync_stk_factor_pro import StkFactorProSync
+from .partition_manager import PartitionManager
 
 __all__ = [
     "BaseSync",
@@ -14,4 +16,6 @@ __all__ = [
     "AdjFactorSync",
     "DailyBasicSync",
     "IndexDailySync",
+    "StkFactorProSync",
+    "PartitionManager",
 ]

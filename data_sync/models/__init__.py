@@ -4,6 +4,7 @@ from .stock_adj_factor import StockAdjFactor
 from .stock_daily_basic import StockDailyBasic
 from .index_daily import IndexDaily
 from .trade_calendar import TradeCalendar
+from .stock_factor_pro import StockFactorPro
 
 __all__ = [
     "StockBasic",
@@ -12,4 +13,5 @@ __all__ = [
     "StockDailyBasic",
     "IndexDaily",
     "TradeCalendar",
+    "StockFactorPro",
 ]
