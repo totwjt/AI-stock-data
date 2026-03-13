@@ -2,6 +2,7 @@ import pandas as pd
 from datetime import datetime
 from typing import List, Dict
 from collections import defaultdict
+import asyncio
 from sqlalchemy import select, func
 from data_sync.sync.base import BaseSync
 from data_sync.models.stock_factor_pro import StockFactorPro
@@ -55,35 +56,53 @@ class StkFactorProSync(BaseSync):
         )
         return set(row[0] for row in result.fetchall())
     
-    async def sync_year_batch(self, year: int):
-        start_time = datetime.now()
-        self.logger.info(f"开始批量同步 {year} 年数据（一次获取全部股票）")
+    async def sync_stock_by_year(self, ts_code: str, year: int):
+        if await self._has_data_for_year(ts_code, year):
+            self.logger.debug(f"股票 {ts_code} 在 {year} 年已有数据，跳过")
+            return 0
         
         try:
             start_date = f"{year}0101"
             end_date = f"{year}1231"
             
-            df = self.fetch_data(start_date=start_date, end_date=end_date)
+            df = self.fetch_data(ts_code=ts_code, start_date=start_date, end_date=end_date)
             
             if df is None or df.empty:
-                self.logger.info(f"{year} 年无数据")
                 return 0
-            
-            existing_codes = await self._get_existing_stock_codes_for_year(year)
-            self.logger.info(f"{year} 年已有 {len(existing_codes)} 只股票有数据")
             
             data_list = self.transform_data(df)
             
-            stock_data_map: Dict[str, list] = defaultdict(list)
-            for record in data_list:
-                ts_code = record.get('ts_code')
-                if ts_code and ts_code not in existing_codes:
-                    stock_data_map[ts_code].append(record)
+            if not data_list:
+                return 0
             
-            total_count = 0
-            for ts_code, records in stock_data_map.items():
-                count = await self.upsert_data(records)
-                total_count += count
+            count = await self.upsert_data(data_list)
+            return count
+            
+        except Exception as e:
+            self.logger.warning(f"股票 {ts_code} 在 {year} 年同步失败: {str(e)}")
+            return 0
+    
+    async def sync_year_batch(self, year: int, max_concurrent: int = 20):
+        start_time = datetime.now()
+        self.logger.info(f"开始批量同步 {year} 年数据（并发数: {max_concurrent}）")
+        
+        try:
+            existing_codes = await self._get_existing_stock_codes_for_year(year)
+            stock_codes = await self._get_listed_stock_codes()
+            
+            need_sync = [code for code in stock_codes if code not in existing_codes]
+            self.logger.info(f"{year} 年需要同步 {len(need_sync)} 只股票，已有 {len(existing_codes)} 只")
+            
+            semaphore = asyncio.Semaphore(max_concurrent)
+            
+            async def sync_one(ts_code: str):
+                async with semaphore:
+                    return await self.sync_stock_by_year(ts_code, year)
+            
+            tasks = [sync_one(code) for code in need_sync]
+            results = await asyncio.gather(*tasks)
+            
+            total_count = sum(results)
             
             duration = (datetime.now() - start_time).total_seconds()
             self.logger.info(f"{year} 年批量同步完成，新增 {total_count} 条数据，耗时 {duration:.2f} 秒")
@@ -101,7 +120,7 @@ class StkFactorProSync(BaseSync):
             start_year = datetime.now().year - 10
         
         start_time = datetime.now()
-        self.logger.info(f"开始按年份批量同步，年份范围: {start_year} - {end_year}（每年1次API调用）")
+        self.logger.info(f"开始按年份批量同步，年份范围: {start_year} - {end_year}")
         
         try:
             total_count = 0
