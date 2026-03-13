@@ -118,11 +118,10 @@ async def start_sync(table_name: str, request: SyncRequest = SyncRequest()):
             "ts_code": None,
         }
     elif table_name == "stk_factor_pro":
-        # 使用优化后的同步逻辑：按股票逐只增量同步
-        sync_func_name = "sync_stock"
+        sync_func_name = "sync_history_by_year"
         func_kwargs = {
-            "start_date": request.start_date,
-            "end_date": request.end_date,
+            "start_year": None,
+            "end_year": None,
         }
     else:
         sync_func_name = "sync_incremental"
@@ -134,23 +133,8 @@ async def start_sync(table_name: str, request: SyncRequest = SyncRequest()):
     async def sync_task_wrapper():
         async with async_session() as db:
             sync_instance = sync_class(db)
-            
-            if table_name == "stk_factor_pro":
-                # 按股票逐只同步（从 stock_basic 表读取股票列表，但不维护该表）
-                stock_codes = await sync_instance.get_stock_codes_to_sync()
-                total = 0
-                for i, ts_code in enumerate(stock_codes):
-                    try:
-                        count = await sync_instance.sync_stock(ts_code, **func_kwargs)
-                        total += count
-                        sync_instance.logger.info(f"[{i+1}/{len(stock_codes)}] {ts_code}: 累计 {total} 条")
-                    except Exception as e:
-                        sync_instance.logger.warning(f"[{i+1}/{len(stock_codes)}] {ts_code}: 同步失败 - {str(e)}")
-                        continue
-                return total
-            else:
-                sync_func = getattr(sync_instance, sync_func_name)
-                return await sync_func(**func_kwargs)
+            sync_func = getattr(sync_instance, sync_func_name)
+            return await sync_func(**func_kwargs)
     
     task_id = await sync_manager.submit_sync(
         table_name=table_name,

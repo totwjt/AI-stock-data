@@ -68,7 +68,7 @@ async def run_sync(sync_type: str, start_date: str = None, end_date: str = None)
             await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
         elif sync_type == "stk_factor_pro":
             sync = StkFactorProSync(db)
-            await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            await sync.sync_with_retry(sync.sync_history_by_year)
         elif sync_type == "all":
             await run_sync("stock_basic", start_date, end_date)
             await run_sync("trade_cal", start_date, end_date)
