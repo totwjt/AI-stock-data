@@ -307,6 +307,44 @@ def create_app():
                         }
                     }
                     
+                    async function forceSync(tableName) {
+                        const btn = document.getElementById('force-' + tableName);
+                        const status = document.getElementById('status-' + tableName);
+                        
+                        if (!confirm('强制重新同步会覆盖已有数据，确定要继续吗？')) {
+                            return;
+                        }
+                        
+                        btn.disabled = true;
+                        btn.textContent = '强制同步中...';
+                        status.textContent = '强制同步中';
+                        status.className = 'status-running';
+                        
+                        try {
+                            const response = await fetch('/api/sync/' + tableName, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({sync_type: 'force'})
+                            });
+                            
+                            const data = await response.json();
+                            
+                            if (response.ok) {
+                                pollStatus(tableName, data.task_id);
+                            } else {
+                                status.textContent = '失败: ' + data.detail;
+                                status.className = 'status-failed';
+                                btn.disabled = false;
+                                btn.textContent = '强制重同步';
+                            }
+                        } catch (error) {
+                            status.textContent = '请求失败: ' + error;
+                            status.className = 'status-failed';
+                            btn.disabled = false;
+                            btn.textContent = '强制重同步';
+                        }
+                    }
+                    
                     async function stopSync(tableName) {
                         const stopBtn = document.getElementById('stop-' + tableName);
                         const status = document.getElementById('status-' + tableName);
@@ -409,10 +447,13 @@ def create_app():
                 
                 resync_btn = ""
                 batch_sync_btn = ""
+                force_sync_btn = ""
                 if sync_task_name in ["stock_basic", "trade_calendar"]:
                     resync_btn = f'<button id="resync-{sync_task_name}" class="resync-btn" onclick="resyncTable(\'{sync_task_name}\')">重新同步</button>'
                 elif sync_task_name == "stk_factor_pro":
-                    batch_sync_btn = f'<button id="batch-{sync_task_name}" class="batch-sync-btn" onclick="batchSync(\'{sync_task_name}\')">批量同步(10年)</button>'
+                    batch_sync_btn = f'<button id="batch-{sync_task_name}" class="batch-sync-btn" onclick="batchSync(\'{sync_task_name}\')">批量同步</button>'
+                    force_sync_btn = f'<button id="force-{sync_task_name}" class="batch-sync-btn" onclick="forceSync(\'{sync_task_name}\')" style="background-color:#f44376;">强制重同步</button>'
+                else:
                 
                 html += f"""
                     <tr>
@@ -426,7 +467,7 @@ def create_app():
                             <a href="/table/{table_name}">浏览数据</a> |
                             <a href="/schema/{table_name}">查看结构</a>
                         </td>
-                        <td>{sync_btn}{resync_btn}{batch_sync_btn}{stop_btn}</td>
+                        <td>{sync_btn}{resync_btn}{batch_sync_btn}{force_sync_btn}{stop_btn}</td>
                         <td id="{status_id}">-</td>
                     </tr>
                 """

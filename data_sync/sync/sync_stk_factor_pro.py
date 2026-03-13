@@ -48,7 +48,7 @@ class StkFactorProSync(BaseSync):
         )
         return [row[0] for row in result.fetchall()]
     
-    async def sync_year_by_trade_date(self, year: int, max_concurrent: int = 10):
+    async def sync_year_by_trade_date(self, year: int, max_concurrent: int = 10, force: bool = False):
         start_time = datetime.now()
         self.logger.info(f"开始同步 {year} 年数据（按交易日批量获取）")
         
@@ -57,9 +57,17 @@ class StkFactorProSync(BaseSync):
             self.logger.info(f"{year} 年已有 {len(existing_dates)} 个交易日数据")
             
             trade_dates = await self._get_trade_dates_of_year(year)
-            need_sync = [d for d in trade_dates if d not in existing_dates]
             
-            self.logger.info(f"{year} 年需要同步 {len(need_sync)} 个交易日")
+            if force:
+                need_sync = trade_dates
+                self.logger.info(f"{year} 年强制同步全部 {len(trade_dates)} 个交易日")
+            else:
+                need_sync = [d for d in trade_dates if d not in existing_dates]
+                self.logger.info(f"{year} 年需要同步 {len(need_sync)} 个交易日")
+            
+            if not need_sync:
+                self.logger.info(f"{year} 年无需同步")
+                return 0
             
             semaphore = asyncio.Semaphore(max_concurrent)
             
@@ -93,20 +101,20 @@ class StkFactorProSync(BaseSync):
             self.logger.error(f"{year} 年同步失败: {str(e)}")
             raise
     
-    async def sync_history_by_year(self, start_year: int = None, end_year: int = None):
+    async def sync_history_by_year(self, start_year: int = None, end_year: int = None, force: bool = False):
         if end_year is None:
             end_year = datetime.now().year
         if start_year is None:
             start_year = datetime.now().year - 10
         
         start_time = datetime.now()
-        self.logger.info(f"开始按年同步，年份范围: {start_year} - {end_year}")
+        self.logger.info(f"开始按年同步，年份范围: {start_year} - {end_year}，force={force}")
         
         try:
             total_count = 0
             
             for year in range(end_year, start_year - 1, -1):
-                count = await self.sync_year_by_trade_date(year)
+                count = await self.sync_year_by_trade_date(year, force=force)
                 total_count += count
             
             duration = (datetime.now() - start_time).total_seconds()
