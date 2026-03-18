@@ -12,7 +12,7 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", 5432))
 DB_NAME = os.getenv("DB_NAME", "tushare_sync")
 DB_USER = os.getenv("DB_USER", "wangjiangtao")  # 与 .env 文件保持一致
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "123456")
 
 
 async def get_db_connection():
@@ -29,7 +29,7 @@ async def get_db_connection():
 def create_app():
     """创建 Web 查询应用"""
     app = FastAPI(title="PostgreSQL Web Query", description="查询 PostgreSQL 数据库的 Web 界面")
-    
+
     # 导入并包含同步API路由
     from .sync_api import router as sync_router
     app.include_router(sync_router)
@@ -41,9 +41,9 @@ def create_app():
             conn = await get_db_connection()
             # 查询所有表
             tables = await conn.fetch("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
                 ORDER BY table_name
             """)
             await conn.close()
@@ -58,10 +58,11 @@ def create_app():
                 "daily_basic": "stock_daily_basic",
                 "index_daily": "index_daily",
                 "stk_factor_pro": "stock_factor_pro",
+                "stk_factor_pro_v2": "stock_factor_pro_v2",
             }
             syncable_tables = list(sync_task_to_table.keys())
             table_to_sync_task = {v: k for k, v in sync_task_to_table.items()}
-            
+
             try:
                 from .table_descriptions import get_all_table_descriptions
                 descriptions = get_all_table_descriptions()
@@ -82,7 +83,7 @@ def create_app():
                     }
             except:
                 desc_dict = {}
-            
+
             html = """
             <!DOCTYPE html>
             <html>
@@ -97,46 +98,46 @@ def create_app():
                     tr:hover { background-color: #f5f5f5; }
                     a { color: #0066cc; text-decoration: none; }
                     a:hover { text-decoration: underline; }
-                    .sync-btn { 
-                        background-color: #4CAF50; 
-                        color: white; 
-                        border: none; 
-                        padding: 5px 10px; 
-                        cursor: pointer; 
+                    .sync-btn {
+                        background-color: #4CAF50;
+                        color: white;
+                        border: none;
+                        padding: 5px 10px;
+                        cursor: pointer;
                         border-radius: 3px;
                         font-size: 12px;
                     }
                     .sync-btn:hover { background-color: #45a049; }
                     .sync-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
-                    .resync-btn { 
-                        background-color: #2196F3; 
-                        color: white; 
-                        border: none; 
-                        padding: 5px 10px; 
-                        cursor: pointer; 
+                    .resync-btn {
+                        background-color: #2196F3;
+                        color: white;
+                        border: none;
+                        padding: 5px 10px;
+                        cursor: pointer;
                         border-radius: 3px;
                         font-size: 12px;
                         margin-left: 5px;
                     }
                     .resync-btn:hover { background-color: #1976D2; }
-                    .batch-sync-btn { 
+                    .batch-sync-btn {
                         background-color: #9C27B0;
-                        color: white; 
-                        border: none; 
-                        padding: 5px 10px; 
-                        cursor: pointer; 
+                        color: white;
+                        border: none;
+                        padding: 5px 10px;
+                        cursor: pointer;
                         border-radius: 3px;
                         font-size: 12px;
                         margin-left: 5px;
                     }
                     .batch-sync-btn:hover { background-color: #7B1FA2; }
                     .batch-sync-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
-                    .stop-btn { 
-                        background-color: #f44336; 
-                        color: white; 
-                        border: none; 
-                        padding: 5px 10px; 
-                        cursor: pointer; 
+                    .stop-btn {
+                        background-color: #f44336;
+                        color: white;
+                        border: none;
+                        padding: 5px 10px;
+                        cursor: pointer;
                         border-radius: 3px;
                         font-size: 12px;
                         margin-left: 5px;
@@ -153,20 +154,20 @@ def create_app():
                     async function startSync(tableName) {
                         const btn = document.getElementById('sync-' + tableName);
                         const status = document.getElementById('status-' + tableName);
-                        
+
                         btn.disabled = true;
                         btn.textContent = '同步中...';
                         status.textContent = '同步中';
                         status.className = 'status-running';
-                        
+
                         try {
                             const response = await fetch('/api/sync/' + tableName, {
                                 method: 'POST',
                                 headers: {'Content-Type': 'application/json'}
                             });
-                            
+
                             const data = await response.json();
-                            
+
                             if (response.ok) {
                                 // 轮询查询状态
                                 pollStatus(tableName, data.task_id);
@@ -183,23 +184,23 @@ def create_app():
                             btn.textContent = '同步';
                         }
                     }
-                    
+
                     async function pollStatus(tableName, taskId) {
                         const syncBtn = document.getElementById('sync-' + tableName);
                         const stopBtn = document.getElementById('stop-' + tableName);
                         const status = document.getElementById('status-' + tableName);
-                        
+
                         // 存储任务ID到停止按钮
                         if (stopBtn) {
                             stopBtn.setAttribute('data-task-id', taskId);
                             stopBtn.disabled = false;
                         }
-                        
+
                         const interval = setInterval(async () => {
                             try {
                                 const response = await fetch('/api/sync/status/' + taskId);
                                 const data = await response.json();
-                                
+
                                 if (data.status === 'completed') {
                                     status.textContent = '完成 (' + data.records_count + ' 条)';
                                     status.className = 'status-completed';
@@ -238,25 +239,25 @@ def create_app():
                             }
                         }, 2000);
                     }
-                    
+
                     async function resyncTable(tableName) {
                         const btn = document.getElementById('resync-' + tableName);
                         const status = document.getElementById('status-' + tableName);
-                        
+
                         btn.disabled = true;
                         btn.textContent = '重新同步中...';
                         status.textContent = '重新同步中';
                         status.className = 'status-running';
-                        
+
                         try {
                             const response = await fetch('/api/sync/' + tableName, {
                                 method: 'POST',
                                 headers: {'Content-Type': 'application/json'},
                                 body: JSON.stringify({sync_type: 'incremental'})
                             });
-                            
+
                             const data = await response.json();
-                            
+
                             if (response.ok) {
                                 pollStatus(tableName, data.task_id);
                             } else {
@@ -272,25 +273,25 @@ def create_app():
                             btn.textContent = '重新同步';
                         }
                     }
-                    
+
                     async function batchSync(tableName) {
                         const btn = document.getElementById('batch-' + tableName);
                         const status = document.getElementById('status-' + tableName);
-                        
+
                         btn.disabled = true;
                         btn.textContent = '批量同步中...';
                         status.textContent = '批量同步中';
                         status.className = 'status-running';
-                        
+
                         try {
                             const response = await fetch('/api/sync/' + tableName, {
                                 method: 'POST',
                                 headers: {'Content-Type': 'application/json'},
                                 body: JSON.stringify({sync_type: 'history_by_year'})
                             });
-                            
+
                             const data = await response.json();
-                            
+
                             if (response.ok) {
                                 pollStatus(tableName, data.task_id);
                             } else {
@@ -306,29 +307,29 @@ def create_app():
                             btn.textContent = '批量同步';
                         }
                     }
-                    
+
                     async function forceSync(tableName) {
                         const btn = document.getElementById('force-' + tableName);
                         const status = document.getElementById('status-' + tableName);
-                        
+
                         if (!confirm('强制重新同步会覆盖已有数据，确定要继续吗？')) {
                             return;
                         }
-                        
+
                         btn.disabled = true;
                         btn.textContent = '强制同步中...';
                         status.textContent = '强制同步中';
                         status.className = 'status-running';
-                        
+
                         try {
                             const response = await fetch('/api/sync/' + tableName, {
                                 method: 'POST',
                                 headers: {'Content-Type': 'application/json'},
                                 body: JSON.stringify({sync_type: 'force'})
                             });
-                            
+
                             const data = await response.json();
-                            
+
                             if (response.ok) {
                                 pollStatus(tableName, data.task_id);
                             } else {
@@ -344,16 +345,16 @@ def create_app():
                             btn.textContent = '强制重同步';
                         }
                     }
-                    
+
                     async function stopSync(tableName) {
                         const stopBtn = document.getElementById('stop-' + tableName);
                         const status = document.getElementById('status-' + tableName);
                         const syncBtn = document.getElementById('sync-' + tableName);
-                        
+
                         stopBtn.disabled = true;
                         stopBtn.textContent = '停止中...';
                         status.textContent = '停止中';
-                        
+
                         try {
                             // 获取当前任务ID（从状态元素的data-task-id属性）
                             const taskId = stopBtn.getAttribute('data-task-id');
@@ -363,13 +364,13 @@ def create_app():
                                 stopBtn.textContent = '停止';
                                 return;
                             }
-                            
+
                             const response = await fetch('/api/sync/stop/' + taskId, {
                                 method: 'POST'
                             });
-                            
+
                             const data = await response.json();
-                            
+
                             if (response.ok) {
                                 status.textContent = '已停止';
                                 status.className = 'status-failed';
@@ -389,7 +390,7 @@ def create_app():
                             stopBtn.textContent = '停止';
                         }
                     }
-                    
+
                     function showTableDesc(tableName) {
                         const descDiv = document.getElementById('desc-' + tableName);
                         if (descDiv.style.display === 'none') {
@@ -415,11 +416,11 @@ def create_app():
 
             for row in tables:
                 table_name = row["table_name"]
-                
+
                 # 获取对应的同步任务名称
                 sync_task_name = table_to_sync_task.get(table_name)
                 is_syncable = sync_task_name is not None
-                
+
                 # 同步按钮使用同步任务名称
                 if is_syncable:
                     sync_btn = f'<button id="sync-{sync_task_name}" class="sync-btn" onclick="startSync(\'{sync_task_name}\')">同步</button>'
@@ -429,7 +430,7 @@ def create_app():
                     sync_btn = 'N/A'
                     stop_btn = ''
                     status_id = f"status-{table_name}"
-                
+
                 # 获取表描述（使用同步任务名称）
                 desc_text = "-"
                 desc_detail = ""
@@ -438,13 +439,13 @@ def create_app():
                     desc_text = desc.get("description", "-")
                     # 构建字段列表
                     fields_html = "<br>".join([
-                        f"{f['name']} ({f['type']}): {f['description']}" 
+                        f"{f['name']} ({f['type']}): {f['description']}"
                         for f in desc.get("fields", [])[:5]  # 只显示前5个字段
                     ])
                     if len(desc.get("fields", [])) > 5:
                         fields_html += f"<br>... 还有 {len(desc.get('fields', [])) - 5} 个字段"
                     desc_detail = f'<div id="desc-{sync_task_name}" class="desc" style="display:none;">{fields_html}</div>'
-                
+
                 resync_btn = ""
                 batch_sync_btn = ""
                 force_sync_btn = ""
@@ -454,7 +455,8 @@ def create_app():
                     batch_sync_btn = f'<button id="batch-{sync_task_name}" class="batch-sync-btn" onclick="batchSync(\'{sync_task_name}\')">批量同步</button>'
                     force_sync_btn = f'<button id="force-{sync_task_name}" class="batch-sync-btn" onclick="forceSync(\'{sync_task_name}\')" style="background-color:#f44376;">强制重同步</button>'
                 else:
-                
+                    pass
+
                 html += f"""
                     <tr>
                         <td>{table_name}</td>
@@ -493,8 +495,8 @@ def create_app():
             # 检查表是否存在
             table_exists = await conn.fetchval("""
                 SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
                     AND table_name = $1
                 )
             """, table_name)
@@ -507,7 +509,7 @@ def create_app():
             columns = await conn.fetch("""
                 SELECT column_name, data_type
                 FROM information_schema.columns
-                WHERE table_schema = 'public' 
+                WHERE table_schema = 'public'
                 AND table_name = $1
                 ORDER BY ordinal_position
             """, table_name)
@@ -576,8 +578,8 @@ def create_app():
             # 检查表是否存在
             table_exists = await conn.fetchval("""
                 SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
                     AND table_name = $1
                 )
             """, table_name)
@@ -588,13 +590,13 @@ def create_app():
 
             # 获取列信息
             columns = await conn.fetch("""
-                SELECT 
+                SELECT
                     column_name,
                     data_type,
                     is_nullable,
                     column_default
                 FROM information_schema.columns
-                WHERE table_schema = 'public' 
+                WHERE table_schema = 'public'
                 AND table_name = $1
                 ORDER BY ordinal_position
             """, table_name)

@@ -18,6 +18,7 @@ from data_sync.sync import (
     DailyBasicSync,
     IndexDailySync,
     StkFactorProSync,
+    StkFactorProV2Sync,
 )
 from .sync_manager import sync_manager, SyncStatus
 from .table_descriptions import (
@@ -81,6 +82,7 @@ TABLE_SYNC_MAP = {
     "daily_basic": DailyBasicSync,
     "index_daily": IndexDailySync,
     "stk_factor_pro": StkFactorProSync,
+    "stk_factor_pro_v2": StkFactorProV2Sync,
 }
 
 
@@ -124,6 +126,16 @@ async def start_sync(table_name: str, request: SyncRequest = SyncRequest()):
             "end_year": None,
             "force": request.sync_type == "force",
         }
+    elif table_name == "stk_factor_pro_v2":
+        if request.sync_type == "incremental":
+            sync_func_name = "sync_incremental"
+            func_kwargs = {}
+        else:
+            sync_func_name = "sync_all_years"
+            func_kwargs = {
+                "start_year": None,
+                "end_year": None,
+            }
     else:
         sync_func_name = "sync_incremental"
         func_kwargs = {
