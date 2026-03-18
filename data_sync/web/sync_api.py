@@ -111,12 +111,15 @@ async def start_sync(table_name: str, request: SyncRequest = SyncRequest()):
             sync_func_name = "sync_full"
         func_kwargs = {}
     elif table_name == "index_daily":
-        sync_func_name = "sync_incremental"
-        func_kwargs = {
-            "start_date": request.start_date,
-            "end_date": request.end_date,
-            "ts_code": None,
-        }
+        if request.sync_type == "incremental":
+            sync_func_name = "sync_incremental"
+            func_kwargs = {}
+        else:
+            sync_func_name = "sync_all_years"
+            func_kwargs = {
+                "start_year": None,
+                "end_year": None,
+            }
     elif table_name == "stk_factor_pro":
         if request.sync_type == "incremental":
             sync_func_name = "sync_incremental"
