@@ -58,7 +58,6 @@ def create_app():
                 "daily_basic": "stock_daily_basic",
                 "index_daily": "index_daily",
                 "stk_factor_pro": "stock_factor_pro",
-                "stk_factor_pro_v2": "stock_factor_pro_v2",
             }
             syncable_tables = list(sync_task_to_table.keys())
             table_to_sync_task = {v: k for k, v in sync_task_to_table.items()}
