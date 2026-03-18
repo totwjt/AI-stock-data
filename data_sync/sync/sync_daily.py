@@ -149,7 +149,7 @@ class DailySync(BaseSync):
             self.logger.error(f"全量同步失败: {str(e)}")
             raise
     
-    async def sync_incremental(self):
+    async def sync_incremental(self, start_date: str = None, end_date: str = None):
         end_year = datetime.now().year
         start_year = end_year - 10
         

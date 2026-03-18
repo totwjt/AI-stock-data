@@ -125,3 +125,6 @@ class StkFactorProSync(BaseSync):
         except Exception as e:
             self.logger.error(f"同步失败: {str(e)}")
             raise
+    
+    async def sync_incremental(self, start_date: str = None, end_date: str = None):
+        return await self.sync_history_by_year()
