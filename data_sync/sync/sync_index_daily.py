@@ -76,7 +76,7 @@ class IndexDailySync(BaseSync):
             'total_dates': row.total_dates or 0,
         }
     
-    async def sync_year(self, year: int, max_concurrent: int = 10):
+    async def sync_year(self, year: int, max_concurrent: int = 5):
         start_time = datetime.now()
         self.logger.info(f"开始同步 {year} 年指数数据")
         
@@ -95,11 +95,18 @@ class IndexDailySync(BaseSync):
             async def sync_one_date(trade_date: str):
                 async with semaphore:
                     try:
-                        df = self.fetch_data(ts_code=','.join(self.INDEX_CODES), trade_date=trade_date)
-                        if df is None or df.empty:
+                        all_data = []
+                        for ts_code in self.INDEX_CODES:
+                            df = self.fetch_data(ts_code=ts_code, trade_date=trade_date)
+                            if df is not None and not df.empty:
+                                all_data.append(df)
+                        
+                        if not all_data:
                             return 0
                         
-                        data_list = self.transform_data(df)
+                        import pandas as pd
+                        combined_df = pd.concat(all_data, ignore_index=True)
+                        data_list = self.transform_data(combined_df)
                         if not data_list:
                             return 0
                         
@@ -166,11 +173,18 @@ class IndexDailySync(BaseSync):
                 max_date = max(need_sync)
                 self.logger.info(f"增量同步: 最新缺失日期 {max_date}")
                 
-                df = self.fetch_data(ts_code=','.join(self.INDEX_CODES), trade_date=max_date)
-                if df is None or df.empty:
+                all_data = []
+                for ts_code in self.INDEX_CODES:
+                    df = self.fetch_data(ts_code=ts_code, trade_date=max_date)
+                    if df is not None and not df.empty:
+                        all_data.append(df)
+                
+                if not all_data:
                     return 0
                 
-                data_list = self.transform_data(df)
+                import pandas as pd
+                combined_df = pd.concat(all_data, ignore_index=True)
+                data_list = self.transform_data(combined_df)
                 if not data_list:
                     return 0
                 
