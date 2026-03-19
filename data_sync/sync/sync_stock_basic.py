@@ -95,3 +95,32 @@ class StockBasicSync(BaseSync):
             select(StockBasic.ts_code)
         )
         return {row[0] for row in result.fetchall()}
+    
+    async def sync_full(self, **kwargs):
+        """全量替换 - 获取所有股票列表并替换"""
+        start_time = datetime.now()
+        self.logger.info(f"开始全量同步 {self.__class__.__name__}")
+        
+        try:
+            df = self.fetch_data(**kwargs)
+            if df is None or df.empty:
+                self.logger.warning("未获取到股票列表数据")
+                return 0
+            
+            data_list = self.transform_data(df)
+            
+            total = 0
+            for i in range(0, len(data_list), self.batch_size):
+                batch = data_list[i:i + self.batch_size]
+                count = await self.upsert_data(batch)
+                total += count
+                self.logger.info(f"已写入 {total} 条股票数据")
+            
+            duration = (datetime.now() - start_time).total_seconds()
+            self.logger.info(f"全量同步完成，共写入 {total} 条数据，耗时 {duration:.2f} 秒")
+            return total
+            
+        except Exception as e:
+            self.logger.error(f"全量同步失败: {str(e)}")
+            await self.db.rollback()
+            raise

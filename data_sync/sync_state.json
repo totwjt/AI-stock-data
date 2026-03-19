@@ -1,0 +1,66 @@
+{
+  "stock_daily": {
+    "2026": {
+      "verified": true,
+      "verified_at": "2026-03-19T14:51:52.795866",
+      "trade_dates": 47
+    },
+    "2025": {
+      "verified": true,
+      "verified_at": "2026-03-19T14:52:32.482282",
+      "trade_dates": 243
+    },
+    "2024": {
+      "verified": true,
+      "verified_at": "2026-03-19T14:54:05.571658",
+      "trade_dates": 242
+    },
+    "2023": {
+      "verified": true,
+      "verified_at": "2026-03-19T14:58:15.500775",
+      "trade_dates": 242
+    },
+    "2022": {
+      "verified": true,
+      "verified_at": "2026-03-19T15:02:08.382720",
+      "trade_dates": 242
+    },
+    "2021": {
+      "verified": true,
+      "verified_at": "2026-03-19T15:05:50.178236",
+      "trade_dates": 243
+    },
+    "2020": {
+      "verified": true,
+      "verified_at": "2026-03-19T15:09:02.781666",
+      "trade_dates": 243
+    },
+    "2019": {
+      "verified": false,
+      "verified_at": "2026-03-19T14:51:53.433649",
+      "trade_dates": 0
+    },
+    "2018": {
+      "verified": false,
+      "verified_at": "2026-03-19T14:51:53.522461",
+      "trade_dates": 0
+    },
+    "2017": {
+      "verified": false,
+      "verified_at": "2026-03-19T14:51:53.611444",
+      "trade_dates": 0
+    },
+    "2016": {
+      "verified": false,
+      "verified_at": "2026-03-19T14:51:53.701127",
+      "trade_dates": 0
+    }
+  },
+  "stk_factor_pro": {
+    "2026": {
+      "verified": true,
+      "verified_at": "2026-03-19T15:33:55.331194",
+      "trade_dates": 47
+    }
+  }
+}

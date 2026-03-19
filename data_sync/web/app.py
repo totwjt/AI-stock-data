@@ -2,16 +2,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import asyncpg
+import asyncio
 import os
 from dotenv import load_dotenv
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 load_dotenv()
 
-# 数据库配置
+scheduler = AsyncIOScheduler()
+
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", 5432))
 DB_NAME = os.getenv("DB_NAME", "tushare_sync")
-DB_USER = os.getenv("DB_USER", "wangjiangtao")  # 与 .env 文件保持一致
+DB_USER = os.getenv("DB_USER", "wangjiangtao")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "123456")
 
 
@@ -31,8 +35,28 @@ def create_app():
     app = FastAPI(title="PostgreSQL Web Query", description="查询 PostgreSQL 数据库的 Web 界面")
 
     # 导入并包含同步API路由
-    from .sync_api import router as sync_router
+    from .sync_api import router as sync_router, run_schedule_sync
     app.include_router(sync_router)
+    
+    # 添加定时任务：每天 16:30 执行
+    async def schedule_job():
+        await run_schedule_sync()
+    
+    scheduler.add_job(
+        schedule_job,
+        CronTrigger(hour=16, minute=30),
+        id='daily_sync',
+        replace_existing=True
+    )
+    
+    @app.on_event("startup")
+    async def startup_event():
+        scheduler.start()
+    
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
 
     @app.get("/", response_class=HTMLResponse)
     async def index():
@@ -61,6 +85,34 @@ def create_app():
             }
             syncable_tables = list(sync_task_to_table.keys())
             table_to_sync_task = {v: k for k, v in sync_task_to_table.items()}
+            
+            # 核心表：固定排序在前
+            priority_tables = ["stock_basic", "stock_daily", "stock_factor_pro"]
+            
+            # 其他表
+            other_tables = [row for row in tables if row["table_name"] not in priority_tables]
+            
+            # 核心表详细数据
+            priority_table_data = [
+                {
+                    "table_name": "stock_basic",
+                    "sync_task_name": "stock_basic",
+                    "description": "获取股票基础信息，包含股票代码、名称、行业等基本信息",
+                    "record_count": "-",
+                },
+                {
+                    "table_name": "stock_daily",
+                    "sync_task_name": "daily",
+                    "description": "获取股票每日行情数据，包含开盘价、收盘价、成交量等",
+                    "record_count": "-",
+                },
+                {
+                    "table_name": "stock_factor_pro",
+                    "sync_task_name": "stk_factor_pro",
+                    "description": "获取股票每日技术面因子数据，用于跟踪股票当前走势情况，包含MACD、KDJ、RSI等数十种技术指标",
+                    "record_count": "-",
+                },
+            ]
 
             try:
                 from .table_descriptions import get_all_table_descriptions
@@ -143,11 +195,92 @@ def create_app():
                     }
                     .stop-btn:hover { background-color: #d32f2f; }
                     .stop-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
+                    .verify-btn {
+                        background-color: #FF9800;
+                        color: white;
+                        border: none;
+                        padding: 5px 10px;
+                        cursor: pointer;
+                        border-radius: 3px;
+                        font-size: 12px;
+                        margin-left: 5px;
+                    }
+                    .verify-btn:hover { background-color: #F57C00; }
+                    .verify-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
+                    .verified-badge {
+                        background-color: #4CAF50;
+                        color: white;
+                        padding: 2px 6px;
+                        border-radius: 3px;
+                        font-size: 11px;
+                        margin-left: 5px;
+                    }
+                    .incomplete-badge {
+                        background-color: #f44336;
+                        color: white;
+                        padding: 2px 6px;
+                        border-radius: 3px;
+                        font-size: 11px;
+                        margin-left: 5px;
+                    }
                     .status-pending { color: #ff9800; }
                     .status-running { color: #2196F3; }
                     .status-completed { color: #4CAF50; }
                     .status-failed { color: #f44336; }
                     .desc { color: #666; font-size: 12px; }
+                    .schedule-section {
+                        background-color: #f5f5f5;
+                        padding: 10px 15px;
+                        border-radius: 5px;
+                        margin-bottom: 15px;
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    }
+                    .schedule-title { font-weight: bold; color: #333; }
+                    .schedule-status { color: #666; margin-left: 10px; }
+                    .switch {
+                        position: relative;
+                        display: inline-block;
+                        width: 40px;
+                        height: 22px;
+                    }
+                    .switch input { opacity: 0; width: 0; height: 0; }
+                    .slider {
+                        position: absolute;
+                        cursor: pointer;
+                        top: 0; left: 0; right: 0; bottom: 0;
+                        background-color: #ccc;
+                        transition: .3s;
+                        border-radius: 22px;
+                    }
+                    .slider:before {
+                        position: absolute;
+                        content: "";
+                        height: 16px;
+                        width: 16px;
+                        left: 3px;
+                        bottom: 3px;
+                        background-color: white;
+                        transition: .3s;
+                        border-radius: 50%;
+                    }
+                    input:checked + .slider { background-color: #4CAF50; }
+                    input:checked + .slider:before { transform: translateX(18px); }
+                    .run-now-btn {
+                        background-color: #673AB7;
+                        color: white;
+                        border: none;
+                        padding: 6px 16px;
+                        cursor: pointer;
+                        border-radius: 4px;
+                        font-size: 13px;
+                        margin-left: 10px;
+                    }
+                    .run-now-btn:hover { background-color: #5E35B1; }
+                    .run-now-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
+                    .group-header { background-color: #e3f2fd; font-weight: bold; }
+                    .priority-table { background-color: #fffde7; }
                 </style>
                 <script>
                     async function startSync(tableName) {
@@ -405,11 +538,88 @@ def create_app():
                             descDiv.style.display = 'none';
                         }
                     }
+
+                    function toggleSchedule() {
+                        const enabled = document.getElementById('schedule-enable').checked;
+                        const status = document.getElementById('schedule-status');
+                        
+                        fetch('/api/sync/schedule/toggle', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ enabled: enabled })
+                        })
+                        .then(r => r.json())
+                        .then(data => {
+                            status.textContent = enabled ? '✓ 定时同步已启用' : '✗ 定时同步已禁用';
+                        })
+                        .catch(err => {
+                            status.textContent = '✗ 操作失败';
+                        });
+                    }
+
+                    async function startVerify(tableName) {
+                        const btn = document.getElementById('verify-' + tableName);
+                        const status = document.getElementById('status-' + tableName);
+
+                        btn.disabled = true;
+                        btn.textContent = '验证中...';
+                        status.textContent = '验证中...';
+                        status.className = 'status-running';
+
+                        try {
+                            const response = await fetch('/api/sync/verify/' + tableName, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'}
+                            });
+
+                            const data = await response.json();
+
+                            if (response.ok) {
+                                pollStatus(tableName, data.task_id);
+                                // 验证完成后刷新页面显示验证状态
+                                setTimeout(() => location.reload(), 3000);
+                            } else {
+                                status.textContent = '验证失败: ' + data.detail;
+                                status.className = 'status-failed';
+                                btn.disabled = false;
+                                btn.textContent = '验证';
+                            }
+                        } catch (error) {
+                            status.textContent = '验证请求失败: ' + error;
+                            status.className = 'status-failed';
+                            btn.disabled = false;
+                            btn.textContent = '验证';
+                        }
+                    }
+
+                    async function loadVerifyStatus(tableName) {
+                        try {
+                            const response = await fetch('/api/sync/verify/status/' + tableName);
+                            if (response.ok) {
+                                const data = await response.json();
+                                if (data.verified_years.length > 0) {
+                                    return '已验证: ' + data.verified_years.join(', ');
+                                }
+                            }
+                            return null;
+                        } catch (error) {
+                            return null;
+                        }
+                    }
                 </script>
             </head>
             <body>
                 <h1>PostgreSQL 数据库查询</h1>
-                <p>可用的数据表：</p>
+                <div class="schedule-section">
+                    <label class="switch">
+                        <input type="checkbox" id="schedule-enable" checked onchange="toggleSchedule()">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="schedule-title">16:30 定时同步 (stock_basic, stock_daily, stk_factor_pro)</span>
+                    <span id="schedule-status" class="schedule-status"></span>
+                </div>
+                
+                <h3 style="margin-top: 20px;">核心数据表</h3>
                 <table>
                     <tr>
                         <th>表名</th>
@@ -420,7 +630,61 @@ def create_app():
                     </tr>
             """
 
-            for row in tables:
+            # 渲染核心表（带字段详情）
+            for item in priority_table_data:
+                sync_task_name = item["sync_task_name"]
+                
+                # 获取字段详情
+                desc_text = item["description"]
+                desc_detail = ""
+                if sync_task_name in desc_dict:
+                    desc = desc_dict[sync_task_name]
+                    fields_html = "<br>".join([
+                        f"{f['name']} ({f['type']}): {f['description']}"
+                        for f in desc.get("fields", [])[:5]
+                    ])
+                    if len(desc.get("fields", [])) > 5:
+                        fields_html += f"<br>... 还有 {len(desc.get('fields', [])) - 5} 个字段"
+                    desc_detail = f'<div id="desc-{sync_task_name}" class="desc" style="display:none;">{fields_html}</div>'
+                
+                sync_btn = f'<button id="sync-{sync_task_name}" class="sync-btn" onclick="startSync(\'{sync_task_name}\')">同步</button>'
+                stop_btn = f'<button id="stop-{sync_task_name}" class="stop-btn" onclick="stopSync(\'{sync_task_name}\')" disabled>停止</button>'
+                verify_btn = f'<button id="verify-{sync_task_name}" class="verify-btn" onclick="startVerify(\'{sync_task_name}\')">验证</button>'
+                status_id = f"status-{sync_task_name}"
+                
+                html += f"""
+                    <tr class="priority-row">
+                        <td>{item["table_name"]}</td>
+                        <td>
+                            {desc_text}
+                            {desc_detail}
+                            {f'<br><a href="javascript:void(0)" onclick="showTableDesc(\'{sync_task_name}\')">查看详情</a>' if desc_detail else ''}
+                        </td>
+                        <td>
+                            <a href="/table/{item["table_name"]}">浏览数据</a> |
+                            <a href="/schema/{item["table_name"]}">查看结构</a>
+                        </td>
+                        <td>{sync_btn}{verify_btn}{stop_btn}</td>
+                        <td id="{status_id}">-</td>
+                    </tr>
+                """
+
+            # 其他表
+            html += """
+                </table>
+                
+                <h3 style="margin-top: 30px;">其他数据表</h3>
+                <table>
+                    <tr>
+                        <th>表名</th>
+                        <th>描述</th>
+                        <th>操作</th>
+                        <th>同步</th>
+                        <th>状态</th>
+                    </tr>
+            """
+
+            for row in other_tables:
                 table_name = row["table_name"]
 
                 # 获取对应的同步任务名称
@@ -432,9 +696,14 @@ def create_app():
                     sync_btn = f'<button id="sync-{sync_task_name}" class="sync-btn" onclick="startSync(\'{sync_task_name}\')">同步</button>'
                     stop_btn = f'<button id="stop-{sync_task_name}" class="stop-btn" onclick="stopSync(\'{sync_task_name}\')" disabled>停止</button>'
                     status_id = f"status-{sync_task_name}"
+                    if sync_task_name == "daily":
+                        verify_btn = f'<button id="verify-{sync_task_name}" class="verify-btn" onclick="startVerify(\'{sync_task_name}\')">验证</button>'
+                    else:
+                        verify_btn = ""
                 else:
                     sync_btn = 'N/A'
                     stop_btn = ''
+                    verify_btn = ''
                     status_id = f"status-{table_name}"
 
                 # 获取表描述（使用同步任务名称）
@@ -453,15 +722,8 @@ def create_app():
                     desc_detail = f'<div id="desc-{sync_task_name}" class="desc" style="display:none;">{fields_html}</div>'
 
                 resync_btn = ""
-                batch_sync_btn = ""
-                force_sync_btn = ""
                 if sync_task_name in ["stock_basic", "trade_calendar"]:
                     resync_btn = f'<button id="resync-{sync_task_name}" class="resync-btn" onclick="resyncTable(\'{sync_task_name}\')">重新同步</button>'
-                elif sync_task_name == "stk_factor_pro":
-                    batch_sync_btn = f'<button id="batch-{sync_task_name}" class="batch-sync-btn" onclick="batchSync(\'{sync_task_name}\')">批量同步</button>'
-                    force_sync_btn = f'<button id="force-{sync_task_name}" class="batch-sync-btn" onclick="forceSync(\'{sync_task_name}\')" style="background-color:#f44376;">强制重同步</button>'
-                else:
-                    pass
 
                 html += f"""
                     <tr>
@@ -475,14 +737,13 @@ def create_app():
                             <a href="/table/{table_name}">浏览数据</a> |
                             <a href="/schema/{table_name}">查看结构</a>
                         </td>
-                        <td>{sync_btn}{resync_btn}{batch_sync_btn}{force_sync_btn}{stop_btn}</td>
+                        <td>{sync_btn}{verify_btn}{resync_btn}{stop_btn}</td>
                         <td id="{status_id}">-</td>
                     </tr>
                 """
 
             html += """
                 </table>
-                <p>说明：绿色按钮表示可同步的表，增量同步默认最近30天数据。</p>
             </body>
             </html>
             """

@@ -22,8 +22,6 @@ class TushareClient:
             try:
                 ts.set_token(token)
                 self._pro = ts.pro_api(token)
-                if hasattr(self._pro, '_DataApi'):
-                    self._pro._DataApi__http_url = settings.tushare_url
                 self._initialized = True
             except Exception as e:
                 print(f"Tushare 初始化失败: {e}")
