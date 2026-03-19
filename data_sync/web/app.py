@@ -195,11 +195,11 @@ def create_app():
                             stopBtn.disabled = false;
                         }
 
-                        const interval = setInterval(async () => {
+                        const interval = setInterval(async () => {, 2000);
                             try {
                                 const response = await fetch('/api/sync/status/' + taskId);
                                 const data = await response.json();
-
+                                
                                 if (data.status === 'completed') {
                                     status.textContent = '完成 (' + data.records_count + ' 条)';
                                     status.className = 'status-completed';
