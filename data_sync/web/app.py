@@ -515,6 +515,44 @@ def create_app():
 
             # 获取数据
             data = await conn.fetch(f"SELECT * FROM {table_name} LIMIT $1", limit)
+            
+            # stock_daily 表添加数据统计
+            stats_html = ""
+            if table_name == "stock_daily":
+                # 按年份统计所有数据
+                stats = await conn.fetch("""
+                    SELECT 
+                        LEFT(trade_date, 4) as year,
+                        COUNT(DISTINCT trade_date) as dates,
+                        COUNT(DISTINCT ts_code) as stocks,
+                        COUNT(*) as records
+                    FROM stock_daily
+                    GROUP BY LEFT(trade_date, 4)
+                    ORDER BY year DESC
+                """)
+                if stats:
+                    stats_html = """
+                    <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px;">
+                        <h3 style="margin-top: 0;">数据统计（从近到远）</h3>
+                        <table style="width: auto; border-collapse: collapse;">
+                            <tr style="background-color: #e0e0e0;">
+                                <th style="padding: 8px; border: 1px solid #ddd;">年份</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">交易日数</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">股票数</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">总记录数</th>
+                            </tr>
+                    """
+                    for s in stats:
+                        stats_html += f"""
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;">{s['year']}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">{s['dates']}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">{s['stocks']}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">{s['records']:,}</td>
+                            </tr>
+                        """
+                    stats_html += "</table></div>"
+            
             await conn.close()
 
             html = f"""
@@ -539,6 +577,7 @@ def create_app():
                     <a href="/schema/{table_name}">查看结构</a>
                 </div>
                 <h1>表 {table_name} 数据 (最多 {limit} 条)</h1>
+                {stats_html}
                 <table>
                     <tr>
             """
