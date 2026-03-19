@@ -108,9 +108,9 @@ show_help() {
 check_port() {
     local port=$1
     local module=$2
-    if lsof -i :$port > /dev/null 2>&1; then
+    if lsof -iTCP:$port -sTCP:LISTEN > /dev/null 2>&1; then
         echo -e "${RED}端口 $port ($module) 已被占用${NC}"
-        lsof -i :$port
+        lsof -iTCP:$port -sTCP:LISTEN
         return 1
     else
         echo -e "${GREEN}端口 $port ($module) 可用${NC}"
