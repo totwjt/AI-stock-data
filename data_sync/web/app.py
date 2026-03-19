@@ -195,9 +195,12 @@ def create_app():
                             stopBtn.disabled = false;
                         }
 
-                        const interval = setInterval(async () => {, 2000);
+                        const interval = setInterval(async () => {
                             try {
-                                const response = await fetch('/api/sync/status/' + taskId);
+                                const controller = new AbortController();
+                                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                                const response = await fetch('/api/sync/status/' + taskId, {signal: controller.signal});
+                                clearTimeout(timeoutId);
                                 const data = await response.json();
                                 
                                 if (data.status === 'completed') {
@@ -222,6 +225,8 @@ def create_app():
                                     clearInterval(interval);
                                 } else if (data.status === 'running') {
                                     status.textContent = '同步中... ' + data.progress + '%';
+                                } else if (data.status === 'pending') {
+                                    status.textContent = '等待中...';
                                 } else if (data.status === 'stopped') {
                                     status.textContent = '已停止';
                                     status.className = 'status-failed';
@@ -234,7 +239,9 @@ def create_app():
                                     clearInterval(interval);
                                 }
                             } catch (error) {
-                                clearInterval(interval);
+                                if (error.name !== 'AbortError') {
+                                    console.log('轮询错误:', error);
+                                }
                             }
                         }, 2000);
                     }
