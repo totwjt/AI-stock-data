@@ -224,7 +224,7 @@ def create_app():
                                     }
                                     clearInterval(interval);
                                 } else if (data.status === 'running') {
-                                    status.textContent = '同步中... ' + data.progress + '%';
+                                    status.textContent = '同步中... ' + data.records_count + ' 条';
                                 } else if (data.status === 'pending') {
                                     status.textContent = '等待中...';
                                 } else if (data.status === 'stopped') {
