@@ -191,3 +191,63 @@ class StkFactorProSync(BaseSync):
     
     async def sync_year_by_trade_date(self, year: int, max_concurrent: int = 10, force: bool = False):
         return await self.sync(year, year)
+    
+    async def sync_recent(self, days: int = 3):
+        today = datetime.now()
+        trade_dates = []
+        
+        # 16:00 后包含当天
+        include_today = today.hour >= 16
+        
+        for i in range(0 if include_today else 1, days + 20):
+            if i == 0:
+                date_str = today.strftime('%Y%m%d')
+            else:
+                check_date = today - timedelta(days=i)
+                date_str = check_date.strftime('%Y%m%d')
+            
+            result = await self.db.execute(
+                select(TradeCalendar.cal_date)
+                .where(TradeCalendar.cal_date == date_str)
+                .where(TradeCalendar.is_open == 1)
+            )
+            if result.fetchone():
+                trade_dates.append(date_str)
+                if len(trade_dates) >= days:
+                    break
+        
+        if not trade_dates:
+            self.logger.info("未找到最近的交易日")
+            return 0
+        
+        self.logger.info(f"增量同步最近 {len(trade_dates)} 个交易日: {trade_dates}")
+        
+        # 直接同步这些日期的数据
+        semaphore = asyncio.Semaphore(10)
+        total_synced = 0
+        
+        async def sync_one_date(trade_date: str):
+            nonlocal total_synced
+            async with semaphore:
+                try:
+                    df = self.fetch_data(trade_date=trade_date)
+                    if df is None or df.empty:
+                        self.logger.warning(f"{trade_date}: 无数据")
+                        return
+                    
+                    data_list = self.transform_data(df)
+                    if not data_list:
+                        return
+                    
+                    count = await self.upsert_data(data_list, auto_commit=False)
+                    total_synced += count
+                    self.logger.info(f"{trade_date}: +{count}")
+                except Exception as e:
+                    self.logger.warning(f"{trade_date} 失败: {e}")
+        
+        tasks = [sync_one_date(d) for d in trade_dates]
+        await asyncio.gather(*tasks)
+        await self.db.commit()
+        
+        self.logger.info(f"增量同步完成: +{total_synced} 条")
+        return total_synced

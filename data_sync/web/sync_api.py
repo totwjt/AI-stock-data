@@ -433,10 +433,10 @@ async def run_schedule_sync():
             results.append(f"stock_daily: 失败 - {e}")
             logger.error(f"stock_daily: 失败 - {e}")
         
-        # 3. stk_factor_pro 同步近3天
+        # 3. stk_factor_pro 增量同步近3天（不走sync_state判断，直接同步）
         try:
             stk_sync = StkFactorProSync(db)
-            stk_count = await stk_sync.sync(start_year=today.year, end_year=today.year)
+            stk_count = await stk_sync.sync_recent(days=3)
             results.append(f"stk_factor_pro: +{stk_count}")
             logger.info(f"stk_factor_pro: +{stk_count}")
         except Exception as e:
