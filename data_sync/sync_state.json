@@ -59,8 +59,58 @@
   "stk_factor_pro": {
     "2026": {
       "verified": true,
-      "verified_at": "2026-03-19T15:33:55.331194",
-      "trade_dates": 47
+      "verified_at": "2026-03-20T13:21:41.114008",
+      "trade_dates": 48
+    },
+    "2025": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:01.139021",
+      "trade_dates": 0
+    },
+    "2024": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:01.258938",
+      "trade_dates": 0
+    },
+    "2023": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:01.369032",
+      "trade_dates": 0
+    },
+    "2022": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:01.476772",
+      "trade_dates": 0
+    },
+    "2021": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:01.592814",
+      "trade_dates": 0
+    },
+    "2020": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:01.701016",
+      "trade_dates": 0
+    },
+    "2019": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:01.812944",
+      "trade_dates": 0
+    },
+    "2018": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:01.924027",
+      "trade_dates": 0
+    },
+    "2017": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:02.031144",
+      "trade_dates": 0
+    },
+    "2016": {
+      "verified": false,
+      "verified_at": "2026-03-20T13:05:02.139569",
+      "trade_dates": 0
     }
   }
 }

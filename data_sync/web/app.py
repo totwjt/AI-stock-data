@@ -1,5 +1,5 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import asyncpg
 import asyncio
@@ -7,6 +7,8 @@ import os
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
 
 load_dotenv()
 
@@ -37,22 +39,22 @@ def create_app():
     # 导入并包含同步API路由
     from .sync_api import router as sync_router, run_schedule_sync
     app.include_router(sync_router)
-    
+
     # 添加定时任务：每天 16:30 执行
     async def schedule_job():
         await run_schedule_sync()
-    
+
     scheduler.add_job(
         schedule_job,
         CronTrigger(hour=16, minute=30),
         id='daily_sync',
         replace_existing=True
     )
-    
+
     @app.on_event("startup")
     async def startup_event():
         scheduler.start()
-    
+
     @app.on_event("shutdown")
     async def shutdown_event():
         if scheduler.running:
@@ -85,13 +87,13 @@ def create_app():
             }
             syncable_tables = list(sync_task_to_table.keys())
             table_to_sync_task = {v: k for k, v in sync_task_to_table.items()}
-            
+
             # 核心表：固定排序在前
             priority_tables = ["stock_basic", "stock_daily", "stock_factor_pro"]
-            
+
             # 其他表
             other_tables = [row for row in tables if row["table_name"] not in priority_tables]
-            
+
             # 核心表详细数据
             priority_table_data = [
                 {
@@ -335,7 +337,7 @@ def create_app():
                                 const response = await fetch('/api/sync/status/' + taskId, {signal: controller.signal});
                                 clearTimeout(timeoutId);
                                 const data = await response.json();
-                                
+
                                 if (data.status === 'completed') {
                                     status.textContent = '完成 (' + data.records_count + ' 条)';
                                     status.className = 'status-completed';
@@ -542,7 +544,7 @@ def create_app():
                     function toggleSchedule() {
                         const enabled = document.getElementById('schedule-enable').checked;
                         const status = document.getElementById('schedule-status');
-                        
+
                         fetch('/api/sync/schedule/toggle', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
@@ -618,7 +620,7 @@ def create_app():
                     <span class="schedule-title">16:30 定时同步 (stock_basic, stock_daily, stk_factor_pro)</span>
                     <span id="schedule-status" class="schedule-status"></span>
                 </div>
-                
+
                 <h3 style="margin-top: 20px;">核心数据表</h3>
                 <table>
                     <tr>
@@ -633,7 +635,7 @@ def create_app():
             # 渲染核心表（带字段详情）
             for item in priority_table_data:
                 sync_task_name = item["sync_task_name"]
-                
+
                 # 获取字段详情
                 desc_text = item["description"]
                 desc_detail = ""
@@ -646,12 +648,12 @@ def create_app():
                     if len(desc.get("fields", [])) > 5:
                         fields_html += f"<br>... 还有 {len(desc.get('fields', [])) - 5} 个字段"
                     desc_detail = f'<div id="desc-{sync_task_name}" class="desc" style="display:none;">{fields_html}</div>'
-                
+
                 sync_btn = f'<button id="sync-{sync_task_name}" class="sync-btn" onclick="startSync(\'{sync_task_name}\')">同步</button>'
                 stop_btn = f'<button id="stop-{sync_task_name}" class="stop-btn" onclick="stopSync(\'{sync_task_name}\')" disabled>停止</button>'
                 verify_btn = f'<button id="verify-{sync_task_name}" class="verify-btn" onclick="startVerify(\'{sync_task_name}\')">验证</button>'
                 status_id = f"status-{sync_task_name}"
-                
+
                 html += f"""
                     <tr class="priority-row">
                         <td>{item["table_name"]}</td>
@@ -672,7 +674,7 @@ def create_app():
             # 其他表
             html += """
                 </table>
-                
+
                 <h3 style="margin-top: 30px;">其他数据表</h3>
                 <table>
                     <tr>
@@ -753,6 +755,491 @@ def create_app():
         except Exception as e:
             return HTMLResponse(content=f"<h1>错误</h1><p>无法连接数据库: {str(e)}</p>", status_code=500)
 
+    @app.get("/api/query/stock_factor_pro")
+    async def query_stock_factor_pro(
+        ts_code: Optional[str] = Query(None, description="股票代码，支持模糊匹配"),
+        trade_date: Optional[str] = Query(None, description="交易日期 (YYYYMMDD)"),
+        start_date: Optional[str] = Query(None, description="开始日期 (YYYYMMDD)"),
+        end_date: Optional[str] = Query(None, description="结束日期 (YYYYMMDD)"),
+        page: int = Query(1, ge=1, description="页码"),
+        page_size: int = Query(10, ge=1, le=100, description="每页条数")
+    ):
+        try:
+            conn = await get_db_connection()
+
+            conditions = []
+            params = []
+            param_idx = 1
+
+            if ts_code:
+                conditions.append(f"ts_code ILIKE ${param_idx}")
+                params.append(f"%{ts_code}%")
+                param_idx += 1
+
+            if trade_date:
+                conditions.append(f"trade_date = ${param_idx}")
+                params.append(trade_date)
+                param_idx += 1
+
+            if start_date:
+                conditions.append(f"trade_date >= ${param_idx}")
+                params.append(start_date)
+                param_idx += 1
+
+            if end_date:
+                conditions.append(f"trade_date <= ${param_idx}")
+                params.append(end_date)
+                param_idx += 1
+
+            where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+            count_query = f"""
+                SELECT COUNT(*) FROM stock_factor_pro WHERE {where_clause}
+            """
+            total_count = await conn.fetchval(count_query, *params)
+
+            offset = (page - 1) * page_size
+            total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
+
+            data_query = f"""
+                SELECT
+                    ts_code,
+                    trade_date,
+                    close,
+                    pct_chg,
+                    turnover_rate,
+                    pe_ttm,
+                    pb,
+                    macd_dif_bfq,
+                    macd_dea_bfq,
+                    macd_bfq,
+                    kdj_k_bfq,
+                    kdj_d_bfq,
+                    kdj_bfq,
+                    rsi_bfq_6,
+                    rsi_bfq_12,
+                    rsi_bfq_24,
+                    boll_upper_bfq,
+                    boll_mid_bfq,
+                    boll_lower_bfq,
+                    cci_bfq,
+                    atr_bfq,
+                    volume_ratio
+                FROM stock_factor_pro
+                WHERE {where_clause}
+                ORDER BY trade_date DESC, ts_code ASC
+                LIMIT ${param_idx} OFFSET ${param_idx + 1}
+            """
+            params.extend([page_size, offset])
+
+            data = await conn.fetch(data_query, *params)
+
+            stock_codes_query = """
+                SELECT DISTINCT ts_code FROM stock_factor_pro ORDER BY ts_code LIMIT 100
+            """
+            stock_codes = await conn.fetch(stock_codes_query)
+
+            await conn.close()
+
+            return JSONResponse({
+                "code": 0,
+                "message": "success",
+                "data": {
+                    "total": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": total_pages,
+                    "records": [dict(row) for row in data],
+                    "stock_codes": [row["ts_code"] for row in stock_codes]
+                }
+            })
+
+        except Exception as e:
+            return JSONResponse({
+                "code": 1,
+                "message": str(e),
+                "data": None
+            }, status_code=500)
+
+    @app.get("/table/stock_factor_pro")
+    async def browse_stock_factor_pro_page():
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>股票技术因子查询</title>
+            <meta charset="utf-8">
+            <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    background-color: #f5f7fa;
+                    padding: 20px;
+                    min-height: 100vh;
+                }
+                .container { max-width: 100vw; margin: 0 auto; }
+                .nav {
+                    background: white;
+                    padding: 15px 20px;
+                    border-radius: 8px;
+                    margin-bottom: 20px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+                }
+                .nav a { color: #0066cc; text-decoration: none; margin-right: 20px; }
+                .nav a:hover { text-decoration: underline; }
+                .search-panel {
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    margin-bottom: 20px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+                }
+                .search-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 15px; }
+                .search-form {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 15px;
+                    align-items: end;
+                }
+                .form-group { display: flex; flex-direction: column; }
+                .form-group label { font-size: 13px; color: #666; margin-bottom: 6px; }
+                .form-group input {
+                    padding: 10px 12px;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    transition: border-color 0.2s;
+                }
+                .form-group input:focus { outline: none; border-color: #0066cc; }
+                .btn-group { display: flex; gap: 10px; }
+                .btn {
+                    padding: 10px 20px;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .btn-primary { background: #0066cc; color: white; }
+                .btn-primary:hover { background: #0052a3; }
+                .btn-secondary { background: #f0f0f0; color: #666; }
+                .btn-secondary:hover { background: #e0e0e0; }
+                .data-panel {
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+                    overflow: hidden;
+                }
+                .data-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 15px 20px;
+                    border-bottom: 1px solid #eee;
+                }
+                .data-title { font-size: 16px; font-weight: 600; color: #333; }
+                .data-summary { font-size: 13px; color: #666; }
+                .table-container { overflow-x: auto; }
+                table { width: 100%; border-collapse: collapse; font-size: 13px; }
+                th {
+                    background: #f8f9fa;
+                    padding: 12px 10px;
+                    text-align: left;
+                    font-weight: 600;
+                    color: #333;
+                    border-bottom: 2px solid #eee;
+                    white-space: nowrap;
+                    position: sticky;
+                    top: 0;
+                }
+                td { padding: 10px; border-bottom: 1px solid #eee; color: #333; }
+                tr:hover { background-color: #f8f9fa; }
+                .stock-code { color: #0066cc; font-weight: 500; }
+                .trade-date { color: #666; }
+                .positive { color: #f44336; }
+                .negative { color: #4caf50; }
+                .pagination {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 15px 20px;
+                    border-top: 1px solid #eee;
+                }
+                .pagination-info { font-size: 13px; color: #666; }
+                .pagination-controls { display: flex; gap: 5px; align-items: center; }
+                .page-btn {
+                    padding: 8px 12px;
+                    border: 1px solid #ddd;
+                    background: white;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 13px;
+                    color: #333;
+                    transition: all 0.2s;
+                }
+                .page-btn:hover:not(:disabled) { border-color: #0066cc; color: #0066cc; }
+                .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+                .page-btn.active { background: #0066cc; color: white; border-color: #0066cc; }
+                .page-input { width: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-align: center; }
+                .loading { text-align: center; padding: 40px; color: #666; }
+                .no-data { text-align: center; padding: 60px 20px; color: #999; }
+                .toast {
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 12px 20px;
+                    background: #333;
+                    color: white;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    z-index: 1000;
+                    display: none;
+                }
+                .toast.error { background: #f44336; }
+                .toast.success { background: #4caf50; }
+                .num { font-family: "SF Mono", Monaco, monospace; text-align: right; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="nav">
+                    <a href="/">← 返回首页</a>
+                    <a href="/schema/stock_factor_pro">查看表结构</a>
+                </div>
+
+                <div class="search-panel">
+                    <div class="search-title">条件筛选</div>
+                    <div class="search-form">
+                        <div class="form-group">
+                            <label>股票代码</label>
+                            <input type="text" id="ts_code" placeholder="如: 000001" list="stock-codes">
+                            <datalist id="stock-codes"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label>交易日期</label>
+                            <input type="text" id="trade_date" placeholder="YYYYMMDD 如: 20250320">
+                        </div>
+                        <div class="form-group">
+                            <label>开始日期</label>
+                            <input type="text" id="start_date" placeholder="YYYYMMDD 如: 20250101">
+                        </div>
+                        <div class="form-group">
+                            <label>结束日期</label>
+                            <input type="text" id="end_date" placeholder="YYYYMMDD 如: 20250320">
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="search(1)">查询</button>
+                            <button class="btn btn-secondary" onclick="reset()">重置</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="data-panel">
+                    <div class="data-header">
+                        <span class="data-title">查询结果</span>
+                        <span class="data-summary" id="data-summary">共 0 条记录</span>
+                    </div>
+                    <div id="data-container">
+                        <div class="no-data">请输入查询条件并点击"查询"按钮</div>
+                    </div>
+                    <div class="pagination" id="pagination" style="display: none;">
+                        <div class="pagination-info" id="pagination-info"></div>
+                        <div class="pagination-controls">
+                            <button class="page-btn" id="prev-btn" onclick="prevPage()">上一页</button>
+                            <span id="page-numbers"></span>
+                            <button class="page-btn" id="next-btn" onclick="nextPage()">下一页</button>
+                            <span style="margin-left: 10px;">跳至</span>
+                            <input type="number" class="page-input" id="page-input" min="1" onchange="goToPage(this.value)">
+                            <span>页</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="toast" id="toast"></div>
+
+            <script>
+                let currentPage = 1, totalPages = 1, totalCount = 0;
+
+                async function init() {
+                    try {
+                        const response = await fetch('/api/query/stock_factor_pro?page=1&page_size=1');
+                        const result = await response.json();
+                        if (result.code === 0 && result.data.stock_codes) {
+                            const datalist = document.getElementById('stock-codes');
+                            result.data.stock_codes.forEach(code => {
+                                const option = document.createElement('option');
+                                option.value = code;
+                                datalist.appendChild(option);
+                            });
+                        }
+                    } catch (e) { console.error('初始化失败:', e); }
+                }
+
+                function showToast(message, type = 'info') {
+                    const toast = document.getElementById('toast');
+                    toast.textContent = message;
+                    toast.className = 'toast ' + type;
+                    toast.style.display = 'block';
+                    setTimeout(() => toast.style.display = 'none', 3000);
+                }
+
+                function formatNum(val, decimals = 2) {
+                    if (val === null || val === undefined) return '-';
+                    const num = parseFloat(val);
+                    if (isNaN(num)) return '-';
+                    return num.toFixed(decimals);
+                }
+
+                function formatPct(val) {
+                    if (val === null || val === undefined) return '-';
+                    const num = parseFloat(val);
+                    if (isNaN(num)) return '-';
+                    const cls = num > 0 ? 'positive' : (num < 0 ? 'negative' : '');
+                    return '<span class="' + cls + '">' + formatNum(num) + '%</span>';
+                }
+
+                async function search(page = 1) {
+                    const ts_code = document.getElementById('ts_code').value.trim();
+                    const trade_date = document.getElementById('trade_date').value.trim();
+                    const start_date = document.getElementById('start_date').value.trim();
+                    const end_date = document.getElementById('end_date').value.trim();
+
+                    currentPage = page;
+                    const params = new URLSearchParams({ page: page, page_size: 10 });
+                    if (ts_code) params.append('ts_code', ts_code);
+                    if (trade_date) params.append('trade_date', trade_date);
+                    if (start_date) params.append('start_date', start_date);
+                    if (end_date) params.append('end_date', end_date);
+
+                    const container = document.getElementById('data-container');
+                    container.innerHTML = '<div class="loading">加载中...</div>';
+
+                    try {
+                        const response = await fetch('/api/query/stock_factor_pro?' + params.toString());
+                        const result = await response.json();
+
+                        if (result.code === 0) {
+                            const data = result.data;
+                            totalCount = data.total;
+                            totalPages = data.total_pages;
+                            currentPage = data.page;
+                            renderTable(data.records);
+                            renderPagination();
+                            document.getElementById('data-summary').textContent = '共 ' + totalCount.toLocaleString() + ' 条记录';
+                        } else {
+                            container.innerHTML = '<div class="no-data">查询失败: ' + result.message + '</div>';
+                            showToast(result.message, 'error');
+                        }
+                    } catch (e) {
+                        container.innerHTML = '<div class="no-data">请求失败: ' + e.message + '</div>';
+                        showToast('网络请求失败', 'error');
+                    }
+                }
+
+                function renderTable(records) {
+                    const container = document.getElementById('data-container');
+                    if (!records || records.length === 0) {
+                        container.innerHTML = '<div class="no-data">未找到符合条件的数据</div>';
+                        document.getElementById('pagination').style.display = 'none';
+                        return;
+                    }
+
+                    const fields = [
+                        {key: 'ts_code', label: '股票代码', format: 'code'},
+                        {key: 'trade_date', label: '交易日期', format: 'date'},
+                        {key: 'close', label: '收盘价', format: 'num'},
+                        {key: 'pct_chg', label: '涨跌幅', format: 'pct'},
+                        {key: 'turnover_rate', label: '换手率%', format: 'num'},
+                        {key: 'volume_ratio', label: '量比', format: 'num'},
+                        {key: 'pe_ttm', label: 'PE(TTM)', format: 'num'},
+                        {key: 'pb', label: 'PB', format: 'num'},
+                        {key: 'macd_dif_bfq', label: 'MACD-DIF', format: 'num'},
+                        {key: 'macd_dea_bfq', label: 'MACD-DEA', format: 'num'},
+                        {key: 'macd_bfq', label: 'MACD', format: 'num'},
+                        {key: 'kdj_k_bfq', label: 'KDJ-K', format: 'num'},
+                        {key: 'kdj_d_bfq', label: 'KDJ-D', format: 'num'},
+                        {key: 'kdj_bfq', label: 'KDJ-J', format: 'num'},
+                        {key: 'rsi_bfq_6', label: 'RSI-6', format: 'num'},
+                        {key: 'rsi_bfq_12', label: 'RSI-12', format: 'num'},
+                        {key: 'rsi_bfq_24', label: 'RSI-24', format: 'num'},
+                        {key: 'boll_upper_bfq', label: '布林上轨', format: 'num'},
+                        {key: 'boll_mid_bfq', label: '布林中轨', format: 'num'},
+                        {key: 'boll_lower_bfq', label: '布林下轨', format: 'num'},
+                        {key: 'cci_bfq', label: 'CCI', format: 'num'},
+                        {key: 'atr_bfq', label: 'ATR', format: 'num'},
+                    ];
+
+                    let html = '<div class="table-container"><table><thead><tr>';
+                    fields.forEach(f => { html += '<th>' + f.label + '</th>'; });
+                    html += '</tr></thead><tbody>';
+
+                    records.forEach(row => {
+                        html += '<tr>';
+                        fields.forEach(f => {
+                            let val = row[f.key];
+                            let content = val;
+                            if (f.format === 'code') content = '<span class="stock-code">' + val + '</span>';
+                            else if (f.format === 'date') {
+                                if (val) {
+                                    val = val.toString();
+                                    content = '<span class="trade-date">' + val.slice(0,4) + '-' + val.slice(4,6) + '-' + val.slice(6,8) + '</span>';
+                                }
+                            } else if (f.format === 'pct') content = formatPct(val);
+                            else if (f.format === 'num') content = '<span class="num">' + formatNum(val) + '</span>';
+                            html += '<td>' + content + '</td>';
+                        });
+                        html += '</tr>';
+                    });
+
+                    html += '</tbody></table></div>';
+                    container.innerHTML = html;
+                }
+
+                function renderPagination() {
+                    const pagination = document.getElementById('pagination');
+                    pagination.style.display = 'flex';
+                    document.getElementById('pagination-info').textContent = '第 ' + currentPage + ' / ' + totalPages + ' 页';
+                    document.getElementById('prev-btn').disabled = currentPage <= 1;
+                    document.getElementById('next-btn').disabled = currentPage >= totalPages;
+                    document.getElementById('page-input').value = currentPage;
+                    document.getElementById('page-input').max = totalPages;
+
+                    let pagesHtml = '';
+                    const maxButtons = 5;
+                    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+                    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+                    if (endPage - startPage < maxButtons - 1) startPage = Math.max(1, endPage - maxButtons + 1);
+                    for (let i = startPage; i <= endPage; i++) {
+                        pagesHtml += '<button class="page-btn ' + (i === currentPage ? 'active' : '') + '" onclick="search(' + i + ')">' + i + '</button>';
+                    }
+                    document.getElementById('page-numbers').innerHTML = pagesHtml;
+                }
+
+                function prevPage() { if (currentPage > 1) search(currentPage - 1); }
+                function nextPage() { if (currentPage < totalPages) search(currentPage + 1); }
+                function goToPage(page) {
+                    const pageNum = parseInt(page);
+                    if (pageNum >= 1 && pageNum <= totalPages) search(pageNum);
+                }
+
+                function reset() {
+                    document.getElementById('ts_code').value = '';
+                    document.getElementById('trade_date').value = '';
+                    document.getElementById('start_date').value = '';
+                    document.getElementById('end_date').value = '';
+                    document.getElementById('data-container').innerHTML = '<div class="no-data">请输入查询条件并点击"查询"按钮</div>';
+                    document.getElementById('pagination').style.display = 'none';
+                    document.getElementById('data-summary').textContent = '共 0 条记录';
+                }
+
+                init();
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html)
+
     @app.get("/table/{table_name}")
     async def browse_table(table_name: str, limit: int = 100):
         """浏览表数据"""
@@ -783,13 +1270,13 @@ def create_app():
 
             # 获取数据
             data = await conn.fetch(f"SELECT * FROM {table_name} LIMIT $1", limit)
-            
+
             # stock_daily 表添加数据统计
             stats_html = ""
             if table_name == "stock_daily":
                 # 按年份统计所有数据
                 stats = await conn.fetch("""
-                    SELECT 
+                    SELECT
                         LEFT(trade_date, 4) as year,
                         COUNT(DISTINCT trade_date) as dates,
                         COUNT(DISTINCT ts_code) as stocks,
@@ -820,7 +1307,7 @@ def create_app():
                             </tr>
                         """
                     stats_html += "</table></div>"
-            
+
             await conn.close()
 
             html = f"""
