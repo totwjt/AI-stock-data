@@ -2,17 +2,17 @@
   "stock_daily": {
     "2026": {
       "verified": true,
-      "verified_at": "2026-03-22T02:45:52.967365",
+      "verified_at": "2026-03-22T03:48:30.251621",
       "trade_dates": 49
     },
     "2025": {
       "verified": true,
-      "verified_at": "2026-03-22T02:45:52.748626",
+      "verified_at": "2026-03-22T03:48:30.030919",
       "trade_dates": 243
     },
     "2024": {
       "verified": true,
-      "verified_at": "2026-03-22T02:45:52.528927",
+      "verified_at": "2026-03-22T03:48:29.542446",
       "trade_dates": 242
     },
     "2023": {
@@ -59,18 +59,18 @@
   "stk_factor_pro": {
     "2026": {
       "verified": true,
-      "verified_at": "2026-03-22T02:45:59.318495",
+      "verified_at": "2026-03-22T03:48:37.986170",
       "trade_dates": 49
     },
     "2025": {
-      "verified": false,
-      "verified_at": "2026-03-22T02:45:58.978382",
-      "trade_dates": 0
+      "verified": true,
+      "verified_at": "2026-03-22T03:48:37.714641",
+      "trade_dates": 243
     },
     "2024": {
-      "verified": false,
-      "verified_at": "2026-03-22T02:45:58.699224",
-      "trade_dates": 0
+      "verified": true,
+      "verified_at": "2026-03-22T03:48:37.423734",
+      "trade_dates": 242
     },
     "2023": {
       "verified": false,
