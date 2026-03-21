@@ -13,6 +13,8 @@ from data_sync.sync.sync_state import sync_state_manager
 
 class StkFactorProSync(BaseSync):
     manual_full_min_coverage_ratio = 0.98
+    manual_full_batch_size = 5
+    manual_full_batch_sleep = 2.0
     
     def get_table_model(self):
         return StockFactorPro
@@ -298,11 +300,13 @@ class StkFactorProSync(BaseSync):
 
         total_synced = 0
         semaphore = asyncio.Semaphore(1)
+        total_batches = math.ceil(len(need_sync) / self.manual_full_batch_size)
+        processed_batches = 0
 
         async def sync_one_date(trade_date: str):
             nonlocal total_synced
             async with semaphore:
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.5)
                 try:
                     df = self.fetch_data(trade_date=trade_date)
                     if df is None or df.empty:
@@ -317,7 +321,14 @@ class StkFactorProSync(BaseSync):
                 except Exception as e:
                     self.logger.warning(f"{trade_date} 补齐失败: {e}")
 
-        await asyncio.gather(*[sync_one_date(d) for d in need_sync])
-        await self.db.commit()
+        for i in range(0, len(need_sync), self.manual_full_batch_size):
+            batch = need_sync[i:i + self.manual_full_batch_size]
+            await asyncio.gather(*[sync_one_date(d) for d in batch])
+            await self.db.commit()
+            processed_batches += 1
+            if i + self.manual_full_batch_size < len(need_sync):
+                await asyncio.sleep(self.manual_full_batch_sleep)
+                self.logger.info(f"stock_factor_pro 批次进度: {processed_batches}/{total_batches}")
+
         self.logger.info(f"stock_factor_pro 手动全量补齐完成: +{total_synced} 条")
         return total_synced

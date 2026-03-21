@@ -10,6 +10,8 @@ from data_sync.tushare_client import tushare_client
 
 class AdjFactorSync(BaseSync):
     """复权因子同步"""
+    manual_full_batch_size = 50
+    manual_full_batch_sleep = 1.0
     
     def get_table_model(self):
         return StockAdjFactor
@@ -134,6 +136,11 @@ class AdjFactorSync(BaseSync):
                 )
             except Exception as e:
                 self.logger.warning(f"[{i}/{len(pending_codes)}] {ts_code}: 补齐失败 - {e}")
+            if i % self.manual_full_batch_size == 0 and i < len(pending_codes):
+                await asyncio.sleep(self.manual_full_batch_sleep)
+                self.logger.info(
+                    f"stock_adj_factor 批次进度: {i}/{len(pending_codes)}"
+                )
 
         self.logger.info(f"stock_adj_factor 手动全量补齐完成: +{total} 条")
         return total
