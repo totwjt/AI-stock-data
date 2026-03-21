@@ -93,7 +93,7 @@ python -m data_sync.sync_runner all
 python -m data_sync.scheduler.scheduler
 ```
 
-定时任务会在每日 16:30 自动执行增量同步。
+定时任务会在每日 18:00 自动执行增量同步。
 
 ### 3. 运行测试
 

@@ -107,7 +107,16 @@ class StkFactorProSync(BaseSync):
             'total_dates': row.total_dates or 0,
         }
     
-    async def sync(self, start_year: int = None, end_year: int = None, max_concurrent: int = 10):
+    async def sync(self, start_year: int = None, end_year: int = None, max_concurrent: int = 1):
+        """
+        批量同步技术面因子数据
+        
+        max_concurrent: 并发数，默认1（避免触发Tushare限流）
+        """
+        # 限流：每分钟约30次请求，单请求约2秒，1并发+0延迟刚好不超限
+        if max_concurrent > 3:
+            self.logger.warning(f"并发数 {max_concurrent} 过高，可能触发限流，已自动降为1")
+            max_concurrent = 1
         if end_year is None:
             end_year = datetime.now().year
         if start_year is None:
@@ -144,6 +153,7 @@ class StkFactorProSync(BaseSync):
             async def sync_one_date(trade_date: str):
                 nonlocal year_synced
                 async with semaphore:
+                    await asyncio.sleep(0.2)
                     try:
                         df = self.fetch_data(trade_date=trade_date)
                         if df is None or df.empty:
@@ -189,7 +199,7 @@ class StkFactorProSync(BaseSync):
     async def sync_history_by_year(self, start_year: int = None, end_year: int = None, force: bool = False):
         return await self.sync(start_year, end_year)
     
-    async def sync_year_by_trade_date(self, year: int, max_concurrent: int = 10, force: bool = False):
+    async def sync_year_by_trade_date(self, year: int, max_concurrent: int = 1, force: bool = False):
         return await self.sync(year, year)
     
     async def sync_recent(self, days: int = 3):
@@ -222,13 +232,13 @@ class StkFactorProSync(BaseSync):
         
         self.logger.info(f"增量同步最近 {len(trade_dates)} 个交易日: {trade_dates}")
         
-        # 直接同步这些日期的数据
-        semaphore = asyncio.Semaphore(10)
+        semaphore = asyncio.Semaphore(1)
         total_synced = 0
         
         async def sync_one_date(trade_date: str):
             nonlocal total_synced
             async with semaphore:
+                await asyncio.sleep(0.2)
                 try:
                     df = self.fetch_data(trade_date=trade_date)
                     if df is None or df.empty:

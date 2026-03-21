@@ -46,7 +46,7 @@ def create_app():
 
     scheduler.add_job(
         schedule_job,
-        CronTrigger(hour=16, minute=30),
+        CronTrigger(hour=18, minute=0),
         id='daily_sync',
         replace_existing=True
     )
@@ -617,7 +617,7 @@ def create_app():
                         <input type="checkbox" id="schedule-enable" checked onchange="toggleSchedule()">
                         <span class="slider"></span>
                     </label>
-                    <span class="schedule-title">16:30 定时同步 (stock_basic, stock_daily, stk_factor_pro)</span>
+                    <span class="schedule-title">18:00 定时同步 (stock_basic, stock_daily, stk_factor_pro)</span>
                     <span id="schedule-status" class="schedule-status"></span>
                 </div>
 
