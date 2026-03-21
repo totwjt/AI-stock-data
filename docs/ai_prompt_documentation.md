@@ -1,5 +1,13 @@
 # AI 提示词文档：Tushare API 文档 URL 检索
 
+本文档只负责说明“如何查 Tushare 官方接口文档 URL”。
+
+如果用户的问题转向仓库实现，尤其是 `data_sync/` 的结构、同步策略、表映射或运行方式，请不要只看本文档，改为优先阅读：
+
+1. `docs/DATA_SYNC_AI_CONTEXT.md`
+2. `data_sync/README.md`
+3. `SKILLS.md`
+
 ## 概述
 
 本文档说明了 AI 助手在检索 Tushare API 文档 URL 时的优先级和处理流程。
@@ -120,4 +128,5 @@
 - `docs/tushare_api_index.json`：Tushare API 接口索引
 - `SKILLS.md`：项目技能配置，包含常用接口文档
 - `static/ai-docs.json`：AI 可读的 OpenAPI 文档
+- `docs/DATA_SYNC_AI_CONTEXT.md`：`data_sync` 目录当前实现上下文
 - `docs/ai_prompt_documentation.md`：本文档

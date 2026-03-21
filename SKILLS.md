@@ -2,6 +2,33 @@
 
 ## Skills
 
+### data-sync-context
+`data_sync/` 是当前仓库里最复杂、也最容易被旧文档误导的模块。分析或修改它时，请优先遵循下面的顺序：
+
+1. 先看 `docs/DATA_SYNC_AI_CONTEXT.md`
+2. 再看 `data_sync/README.md`
+3. 然后看 `data_sync/sync_runner.py` 和 `data_sync/sync/`
+
+关键约定：
+
+- 目录名是 `data_sync`，不是 `data-sync`
+- 同步任务名和数据库表名不总相同
+- `docs/DATA_SYNC_PLAN.md` 是历史规划，不代表当前实现
+- `data_sync/web/` 已可用，不是待开发目录
+- `stk_factor_pro` 已经接入 CLI 和 Web，同步时要考虑限流
+
+任务名与表名映射：
+
+| 同步任务名 | 数据表名 |
+|------------|----------|
+| `stock_basic` | `stock_basic` |
+| `trade_cal` | `trade_calendar` |
+| `daily` | `stock_daily` |
+| `adj_factor` | `stock_adj_factor` |
+| `daily_basic` | `stock_daily_basic` |
+| `index_daily` | `index_daily` |
+| `stk_factor_pro` | `stock_factor_pro` |
+
 ### tushare-reference
 项目基于Tushare Pro数据接口，官方文档地址：https://tushare.pro/document/2
 
@@ -51,21 +78,16 @@
 快速启动指南：
 
 ```bash
-# 1. 进入项目目录
-cd Ai-TuShare
+./start.sh app
+./start.sh web
 
-# 2. 激活虚拟环境
-source venv/bin/activate
+# 或分别启动
+./venv/bin/python -m app.main
+./venv/bin/python -m data_sync.web.run
 
-# 3. 启动服务
-python -m app.main
-
-# 4. 访问
-- 看板: http://localhost:8000
-- API测试: http://localhost:8000/api-tester
-- Swagger文档: http://localhost:8000/docs
-- AI文档: http://localhost:8000/ai-docs
-- 积分统计: http://localhost:8000/api-stats
+# CLI 同步入口
+./venv/bin/python -m data_sync.sync_runner stock_basic
+./venv/bin/python -m data_sync.sync_runner daily --start_date 20250101 --end_date 20250131
 ```
 
 ### tech-stack
@@ -74,16 +96,24 @@ python -m app.main
 - 后端: FastAPI + SQLAlchemy + aiosqlite
 - 前端: 原生HTML/CSS/JavaScript
 - 数据源: Tushare Pro
-- 数据库: SQLite
+- 数据库: SQLite (`app`) + PostgreSQL (`data_sync`)
 
 ### config-reference
 
-配置项（app/config.py）：
+配置项：
 
 ```python
+# app/config.py
 TUSHARE_TOKEN = "你的token"
 TUSHARE_URL = "http://lianghua.nanyangqiankun.top"
 DATABASE_URL = "sqlite+aiosqlite:///data/app.db"
+
+# data_sync/config.py
+db_host = "localhost"
+db_port = 5432
+db_name = "tushare_sync"
+db_user = "wangjiangtao"
+db_password = ""
 ```
 
 可在.env文件中覆盖默认配置。

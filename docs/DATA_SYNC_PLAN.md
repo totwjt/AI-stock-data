@@ -1,5 +1,7 @@
 # 数据同步模块实现计划（Tushare → PostgreSQL）
 
+> 注意：这是早期规划文档，主要用于保留设计背景。当前实际实现请优先参考 `docs/DATA_SYNC_AI_CONTEXT.md` 与 `data_sync/README.md`。
+
 ## 1 项目目标
 
 在现有项目中新增一个 **数据同步模块（data-sync）**，用于将 Tushare API
