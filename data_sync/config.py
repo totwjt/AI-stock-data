@@ -15,7 +15,10 @@ class SyncSettings(BaseSettings):
     # 数据库 URL
     @property
     def database_url(self) -> str:
-        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+        host = self.db_host
+        if host == "localhost":
+            host = "127.0.0.1"
+        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{host}:{self.db_port}/{self.db_name}"
     
     # Tushare 配置
     tushare_token: str = "你的TushareToken"

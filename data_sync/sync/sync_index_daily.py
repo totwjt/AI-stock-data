@@ -160,44 +160,31 @@ class IndexDailySync(BaseSync):
 
     async def sync_full(self, start_date: str = None, end_date: str = None, max_concurrent: int = 5):
         start_date, end_date = self.get_manual_sync_date_range(start_date, end_date)
-        trade_dates = await self.get_trade_dates_in_range(start_date, end_date)
-        actual_counts = await self.get_actual_counts_by_trade_date(start_date, end_date)
-        expected_count = len(self.INDEX_CODES)
-        need_sync = [d for d in trade_dates if actual_counts.get(d, 0) < expected_count]
+        self.logger.info(
+            f"index_daily 手动全量补齐: {start_date} - {end_date}, 按指数批量拉取 {len(self.INDEX_CODES)} 个指数"
+        )
 
-        if not need_sync:
-            self.logger.info("index_daily 近三年无需手动补齐")
-            return 0
-
-        self.logger.info(f"index_daily 手动全量补齐: {start_date} - {end_date}, 待补 {len(need_sync)} 个交易日")
-
-        semaphore = asyncio.Semaphore(max_concurrent)
         total_count = 0
 
-        async def sync_one_date(trade_date: str):
+        async def sync_one_code(ts_code: str):
             nonlocal total_count
-            async with semaphore:
-                try:
-                    all_data = []
-                    for ts_code in self.INDEX_CODES:
-                        df = self.fetch_data(ts_code=ts_code, trade_date=trade_date)
-                        if df is not None and not df.empty:
-                            all_data.append(df)
-                    if not all_data:
-                        self.logger.warning(f"{trade_date}: 无数据")
-                        return
-                    combined_df = pd.concat(all_data, ignore_index=True)
-                    data_list = self.transform_data(combined_df)
-                    if not data_list:
-                        return
-                    count = await self.upsert_data(data_list, auto_commit=False)
-                    total_count += count
-                    self.logger.info(f"{trade_date}: +{count}")
-                except Exception as e:
-                    self.logger.warning(f"{trade_date} 补齐失败: {e}")
+            try:
+                df = self.fetch_data(ts_code=ts_code, start_date=start_date, end_date=end_date)
+                if df is None or df.empty:
+                    self.logger.warning(f"{ts_code}: 无数据")
+                    return
+                data_list = self.transform_data(df)
+                if not data_list:
+                    return
+                count = await self.upsert_data(data_list, auto_commit=False)
+                total_count += count
+                self.logger.info(f"{ts_code}: +{count}")
+            except Exception as e:
+                self.logger.warning(f"{ts_code} 补齐失败: {e}")
 
-        await asyncio.gather(*[sync_one_date(d) for d in need_sync])
-        await self.db.commit()
+        for ts_code in self.INDEX_CODES:
+            await sync_one_code(ts_code)
+            await self.db.commit()
         self.logger.info(f"index_daily 手动全量补齐完成: +{total_count} 条")
         return total_count
     

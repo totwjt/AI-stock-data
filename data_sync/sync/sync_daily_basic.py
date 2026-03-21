@@ -11,6 +11,8 @@ from data_sync.tushare_client import tushare_client
 
 class DailyBasicSync(BaseSync):
     manual_full_min_coverage_ratio = 0.98
+    manual_full_batch_size = 10
+    manual_full_batch_sleep = 1.0
     
     def get_table_model(self):
         return StockDailyBasic
@@ -179,8 +181,10 @@ class DailyBasicSync(BaseSync):
             f"stock_daily_basic 手动全量补齐: {start_date} - {end_date}, 待补 {len(need_sync)} 个交易日"
         )
 
+        max_concurrent = min(max_concurrent, self.manual_full_batch_size)
         semaphore = asyncio.Semaphore(max_concurrent)
         total_count = 0
+        processed_batches = 0
 
         async def sync_one_date(trade_date: str):
             nonlocal total_count
@@ -199,8 +203,16 @@ class DailyBasicSync(BaseSync):
                 except Exception as e:
                     self.logger.warning(f"{trade_date} 补齐失败: {e}")
 
-        await asyncio.gather(*[sync_one_date(d) for d in need_sync])
-        await self.db.commit()
+        for i in range(0, len(need_sync), self.manual_full_batch_size):
+            batch = need_sync[i:i + self.manual_full_batch_size]
+            await asyncio.gather(*[sync_one_date(d) for d in batch])
+            await self.db.commit()
+            processed_batches += 1
+            if i + self.manual_full_batch_size < len(need_sync):
+                await asyncio.sleep(self.manual_full_batch_sleep)
+                self.logger.info(
+                    f"stock_daily_basic 批次进度: {processed_batches}/{math.ceil(len(need_sync) / self.manual_full_batch_size)}"
+                )
         self.logger.info(f"stock_daily_basic 手动全量补齐完成: +{total_count} 条")
         return total_count
 
