@@ -2,6 +2,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import List, Set, Dict
 import asyncio
+import math
 from sqlalchemy import select, func
 from data_sync.sync.base import BaseSync
 from data_sync.models.stock_factor_pro import StockFactorPro
@@ -11,6 +12,7 @@ from data_sync.sync.sync_state import sync_state_manager
 
 
 class StkFactorProSync(BaseSync):
+    manual_full_min_coverage_ratio = 0.98
     
     def get_table_model(self):
         return StockFactorPro
@@ -190,14 +192,26 @@ class StkFactorProSync(BaseSync):
         
         return total_synced
     
-    async def sync_full(self, start_year: int = None, end_year: int = None):
-        return await self.sync(start_year, end_year)
+    async def sync_full(
+        self,
+        start_date: str = None,
+        end_date: str = None,
+        start_year: int = None,
+        end_year: int = None,
+    ):
+        if start_year is not None or end_year is not None:
+            return await self.sync(start_year, end_year)
+        return await self.sync_recent_history(start_date, end_date)
     
     async def sync_incremental(self, start_date: str = None, end_date: str = None):
-        return await self.sync(start_date, end_date)
+        if start_date or end_date:
+            return await self.sync_recent_history(start_date, end_date)
+        return await self.sync_recent()
     
     async def sync_history_by_year(self, start_year: int = None, end_year: int = None, force: bool = False):
-        return await self.sync(start_year, end_year)
+        if start_year is not None or end_year is not None:
+            return await self.sync(start_year, end_year)
+        return await self.sync_recent_history()
     
     async def sync_year_by_trade_date(self, year: int, max_concurrent: int = 1, force: bool = False):
         return await self.sync(year, year)
@@ -260,4 +274,50 @@ class StkFactorProSync(BaseSync):
         await self.db.commit()
         
         self.logger.info(f"增量同步完成: +{total_synced} 条")
+        return total_synced
+
+    async def sync_recent_history(self, start_date: str = None, end_date: str = None):
+        start_date, end_date = self.get_manual_sync_date_range(start_date, end_date)
+        trade_dates = await self.get_trade_dates_in_range(start_date, end_date)
+        actual_counts = await self.get_actual_counts_by_trade_date(start_date, end_date)
+        target_coverage = await self.get_max_trade_date_coverage(start_date, end_date)
+        min_required = math.ceil(target_coverage * self.manual_full_min_coverage_ratio) if target_coverage > 0 else 0
+        need_sync = []
+        for trade_date in trade_dates:
+            existing = actual_counts.get(trade_date, 0)
+            if existing <= 0 or (min_required > 0 and existing < min_required):
+                need_sync.append(trade_date)
+
+        if not need_sync:
+            self.logger.info("stock_factor_pro 近三年无需手动补齐")
+            return 0
+
+        self.logger.info(
+            f"stock_factor_pro 手动全量补齐: {start_date} - {end_date}, 待补 {len(need_sync)} 个交易日"
+        )
+
+        total_synced = 0
+        semaphore = asyncio.Semaphore(1)
+
+        async def sync_one_date(trade_date: str):
+            nonlocal total_synced
+            async with semaphore:
+                await asyncio.sleep(0.2)
+                try:
+                    df = self.fetch_data(trade_date=trade_date)
+                    if df is None or df.empty:
+                        self.logger.warning(f"{trade_date}: 无数据")
+                        return
+                    data_list = self.transform_data(df)
+                    if not data_list:
+                        return
+                    count = await self.upsert_data(data_list, auto_commit=False)
+                    total_synced += count
+                    self.logger.info(f"{trade_date}: +{count}")
+                except Exception as e:
+                    self.logger.warning(f"{trade_date} 补齐失败: {e}")
+
+        await asyncio.gather(*[sync_one_date(d) for d in need_sync])
+        await self.db.commit()
+        self.logger.info(f"stock_factor_pro 手动全量补齐完成: +{total_synced} 条")
         return total_synced

@@ -138,31 +138,49 @@ async def start_sync(table_name: str, request: SyncRequest = SyncRequest()):
     elif table_name == "index_daily":
         if request.sync_type == "incremental":
             sync_func_name = "sync_incremental"
-            func_kwargs = {}
-        else:
-            sync_func_name = "sync_all_years"
             func_kwargs = {
-                "start_year": None,
-                "end_year": None,
+                "start_date": request.start_date,
+                "end_date": request.end_date,
+            }
+        else:
+            sync_func_name = "sync_full"
+            func_kwargs = {
+                "start_date": request.start_date,
+                "end_date": request.end_date,
             }
     elif table_name == "stk_factor_pro":
-        sync_func_name = "sync"
-        func_kwargs = {}
-    elif table_name == "daily":
-        sync_func_name = "sync"
-        func_kwargs = {}
-    elif table_name in ["daily_basic", "index_daily"]:
         if request.sync_type == "incremental":
             sync_func_name = "sync_incremental"
-            func_kwargs = {}
         else:
-            sync_func_name = "sync_all_years"
+            sync_func_name = "sync_full"
+        func_kwargs = {
+            "start_date": request.start_date,
+            "end_date": request.end_date,
+        }
+    elif table_name == "daily":
+        if request.sync_type == "incremental":
+            sync_func_name = "sync_incremental"
+        else:
+            sync_func_name = "sync_full"
+        func_kwargs = {
+            "start_date": request.start_date,
+            "end_date": request.end_date,
+        }
+    elif table_name == "daily_basic":
+        if request.sync_type == "incremental":
+            sync_func_name = "sync_incremental"
             func_kwargs = {
-                "start_year": None,
-                "end_year": None,
+                "start_date": request.start_date,
+                "end_date": request.end_date,
+            }
+        else:
+            sync_func_name = "sync_full"
+            func_kwargs = {
+                "start_date": request.start_date,
+                "end_date": request.end_date,
             }
     else:
-        sync_func_name = "sync_incremental"
+        sync_func_name = "sync_incremental" if request.sync_type == "incremental" else "sync_full"
         func_kwargs = {
             "start_date": request.start_date,
             "end_date": request.end_date,

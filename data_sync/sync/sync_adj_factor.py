@@ -94,3 +94,46 @@ class AdjFactorSync(BaseSync):
     async def sync_incremental(self, start_date: str = None, end_date: str = None):
         """增量同步 - 按日期范围同步（兼容旧接口）"""
         return await self.sync_by_stock(start_date, end_date)
+
+    async def sync_full(self, start_date: str = None, end_date: str = None):
+        start_date, end_date = self.get_manual_sync_date_range(start_date, end_date)
+        expected_counts = await self.get_expected_trade_date_counts_by_ts_code(start_date, end_date)
+        actual_counts = await self.get_actual_trade_date_counts_by_ts_code(start_date, end_date)
+
+        pending_codes = [
+            ts_code
+            for ts_code, expected in expected_counts.items()
+            if actual_counts.get(ts_code, 0) < expected
+        ]
+        pending_codes.sort(key=lambda code: (actual_counts.get(code, 0), code))
+
+        if not pending_codes:
+            self.logger.info("stock_adj_factor 近三年无需手动补齐")
+            return 0
+
+        self.logger.info(
+            f"stock_adj_factor 手动全量补齐: {start_date} - {end_date}, 待补 {len(pending_codes)} 只股票"
+        )
+
+        total = 0
+        for i, ts_code in enumerate(pending_codes, start=1):
+            try:
+                df = tushare_client.get_adj_factor(
+                    ts_code=ts_code,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                if df is None or df.empty:
+                    self.logger.warning(f"[{i}/{len(pending_codes)}] {ts_code}: 无数据")
+                    continue
+                data_list = self.transform_data(df)
+                count = await self.upsert_data(data_list)
+                total += count
+                self.logger.info(
+                    f"[{i}/{len(pending_codes)}] {ts_code}: {actual_counts.get(ts_code, 0)}/{expected_counts.get(ts_code, 0)} -> +{count}"
+                )
+            except Exception as e:
+                self.logger.warning(f"[{i}/{len(pending_codes)}] {ts_code}: 补齐失败 - {e}")
+
+        self.logger.info(f"stock_adj_factor 手动全量补齐完成: +{total} 条")
+        return total

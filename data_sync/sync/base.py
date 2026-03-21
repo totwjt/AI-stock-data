@@ -1,11 +1,10 @@
 import logging
 import asyncio
-from typing import Optional
 from datetime import datetime, timedelta
 from abc import ABC, abstractmethod
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy import tuple_
+from sqlalchemy import func, select, and_, or_, tuple_
 
 from data_sync.config import settings
 from data_sync.tushare_client import tushare_client
@@ -13,6 +12,9 @@ from data_sync.tushare_client import tushare_client
 
 class BaseSync(ABC):
     """同步任务基类"""
+
+    default_recent_years = 3
+    default_manual_sync_cutoff_hour = 16
     
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
@@ -110,6 +112,88 @@ class BaseSync(ABC):
             await self.db.commit()
         
         return total_count
+
+    def get_manual_sync_date_range(self, start_date: str = None, end_date: str = None) -> tuple[str, str]:
+        """手动全量补齐默认只覆盖近三年，且 16:00 前默认不拉当天。"""
+        now = datetime.now()
+        if not end_date:
+            end_dt = now if now.hour >= self.default_manual_sync_cutoff_hour else now - timedelta(days=1)
+            end_date = end_dt.strftime("%Y%m%d")
+        if not start_date:
+            start_date = (datetime.strptime(end_date, "%Y%m%d") - timedelta(days=365 * self.default_recent_years)).strftime("%Y%m%d")
+        if start_date > end_date:
+            raise ValueError(f"开始日期不能大于结束日期: {start_date} > {end_date}")
+        return start_date, end_date
+
+    async def get_trade_dates_in_range(self, start_date: str, end_date: str) -> list[str]:
+        from data_sync.models.trade_calendar import TradeCalendar
+
+        result = await self.db.execute(
+            select(TradeCalendar.cal_date)
+            .where(TradeCalendar.is_open == 1)
+            .where(TradeCalendar.cal_date >= start_date)
+            .where(TradeCalendar.cal_date <= end_date)
+            .order_by(TradeCalendar.cal_date.desc())
+        )
+        return [row[0] for row in result.fetchall()]
+
+    async def get_actual_counts_by_trade_date(self, start_date: str, end_date: str) -> dict[str, int]:
+        model = self.get_table_model()
+        result = await self.db.execute(
+            select(
+                model.trade_date,
+                func.count(func.distinct(model.ts_code)).label("code_count"),
+            )
+            .where(model.trade_date >= start_date)
+            .where(model.trade_date <= end_date)
+            .group_by(model.trade_date)
+        )
+        return {row[0]: row[1] for row in result.fetchall()}
+
+    async def get_max_trade_date_coverage(self, start_date: str, end_date: str) -> int:
+        actual_counts = await self.get_actual_counts_by_trade_date(start_date, end_date)
+        return max(actual_counts.values(), default=0)
+
+    async def get_actual_trade_date_counts_by_ts_code(self, start_date: str, end_date: str) -> dict[str, int]:
+        model = self.get_table_model()
+        result = await self.db.execute(
+            select(
+                model.ts_code,
+                func.count(func.distinct(model.trade_date)).label("trade_date_count"),
+            )
+            .where(model.trade_date >= start_date)
+            .where(model.trade_date <= end_date)
+            .group_by(model.ts_code)
+        )
+        return {row[0]: row[1] for row in result.fetchall()}
+
+    async def get_expected_trade_date_counts_by_ts_code(self, start_date: str, end_date: str) -> dict[str, int]:
+        from data_sync.models.stock_basic import StockBasic
+        from data_sync.models.trade_calendar import TradeCalendar
+
+        result = await self.db.execute(
+            select(
+                StockBasic.ts_code,
+                func.count(TradeCalendar.cal_date).label("trade_date_count"),
+            )
+            .select_from(StockBasic)
+            .join(
+                TradeCalendar,
+                and_(
+                    TradeCalendar.is_open == 1,
+                    TradeCalendar.cal_date >= start_date,
+                    TradeCalendar.cal_date <= end_date,
+                    StockBasic.list_date <= TradeCalendar.cal_date,
+                    or_(
+                        StockBasic.delist_date.is_(None),
+                        StockBasic.delist_date == "",
+                        StockBasic.delist_date >= TradeCalendar.cal_date,
+                    ),
+                ),
+            )
+            .group_by(StockBasic.ts_code)
+        )
+        return {row[0]: row[1] for row in result.fetchall()}
     
     async def sync_full(self, **kwargs):
         """全量同步"""

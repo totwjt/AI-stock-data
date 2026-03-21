@@ -56,19 +56,34 @@ async def run_sync(sync_type: str, start_date: str = None, end_date: str = None)
             await sync.sync_with_retry(sync.sync_full)
         elif sync_type == "daily":
             sync = DailySync(db)
-            await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            if start_date or end_date:
+                await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            else:
+                await sync.sync_with_retry(sync.sync_full)
         elif sync_type == "adj_factor":
             sync = AdjFactorSync(db)
-            await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            if start_date or end_date:
+                await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            else:
+                await sync.sync_with_retry(sync.sync_full)
         elif sync_type == "daily_basic":
             sync = DailyBasicSync(db)
-            await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            if start_date or end_date:
+                await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            else:
+                await sync.sync_with_retry(sync.sync_full)
         elif sync_type == "index_daily":
             sync = IndexDailySync(db)
-            await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            if start_date or end_date:
+                await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            else:
+                await sync.sync_with_retry(sync.sync_full)
         elif sync_type == "stk_factor_pro":
             sync = StkFactorProSync(db)
-            await sync.sync_with_retry(sync.sync_history_by_year)
+            if start_date or end_date:
+                await sync.sync_with_retry(sync.sync_incremental, start_date, end_date)
+            else:
+                await sync.sync_with_retry(sync.sync_full)
         elif sync_type == "all":
             await run_sync("stock_basic", start_date, end_date)
             await run_sync("trade_cal", start_date, end_date)
