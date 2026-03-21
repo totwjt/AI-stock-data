@@ -86,6 +86,24 @@ RETRY_DELAY=5
 
 ## 核心入口
 
+### 0. 同步脚本集 (推荐)
+
+`sync/` 目录下提供三个独立脚本，简化日常操作：
+
+```bash
+# 全量同步 - 一次性补齐近3年数据
+./venv/bin/python -m data_sync.scripts.sync_full
+./venv/bin/python -m data_sync.scripts.sync_full --tables stock_factor_pro
+
+# 持续同步 - 定时增量同步
+./venv/bin/python -m data_sync.scripts.sync_continuous
+./venv/bin/python -m data_sync.scripts.sync_continuous --interval 1800  # 30分钟
+
+# 数据验证 - 检查近3年完整性
+./venv/bin/python -m data_sync.scripts.sync_verify
+./venv/bin/python -m data_sync.scripts.sync_verify --tables stock_daily
+```
+
 ### 1. CLI 同步入口
 
 ```bash

@@ -278,29 +278,148 @@ class StkFactorProSync(BaseSync):
         self.logger.info(f"增量同步完成: +{total_synced} 条")
         return total_synced
 
-    async def sync_recent_history(self, start_date: str = None, end_date: str = None):
-        start_date, end_date = self.get_manual_sync_date_range(start_date, end_date)
-        trade_dates = await self.get_trade_dates_in_range(start_date, end_date)
+    async def _get_year_coverage(self, year: int) -> Dict:
+        expected_dates = await self._get_expected_trade_dates(year)
+        actual_counts = await self.get_actual_counts_by_trade_date(f"{year}0101", f"{year}1231")
+        
+        today = datetime.now()
+        current_year = today.year
+        is_before_16 = today.hour < 16
+        
+        if year == current_year and is_before_16:
+            yesterday = (today - timedelta(days=1)).strftime('%Y%m%d')
+            expected_dates = [d for d in expected_dates if d <= yesterday]
+        
+        if not expected_dates:
+            return {'year': year, 'coverage': 1.0, 'expected': 0, 'actual': 0, 'skip': True}
+        
+        actual = sum(1 for d in expected_dates if actual_counts.get(d, 0) > 0)
+        coverage = actual / len(expected_dates) if expected_dates else 0
+        
+        return {
+            'year': year,
+            'coverage': coverage,
+            'expected': len(expected_dates),
+            'actual': actual,
+            'skip': coverage >= self.manual_full_min_coverage_ratio
+        }
+    
+    async def _get_month_coverage(self, year: int, month: int) -> Dict:
+        month_start = f"{year}{month:02d}01"
+        if month == 12:
+            month_end = f"{year + 1}0101"
+        else:
+            month_end = f"{year}{month + 1:02d}01"
+        
+        result = await self.db.execute(
+            select(TradeCalendar.cal_date)
+            .where(TradeCalendar.cal_date >= month_start)
+            .where(TradeCalendar.cal_date < month_end)
+            .where(TradeCalendar.is_open == 1)
+        )
+        expected_dates = [row[0] for row in result.fetchall()]
+        
+        today = datetime.now()
+        current_year = today.year
+        is_before_16 = today.hour < 16
+        
+        if year == current_year and is_before_16:
+            yesterday = (today - timedelta(days=1)).strftime('%Y%m%d')
+            expected_dates = [d for d in expected_dates if d <= yesterday]
+        
+        if not expected_dates:
+            return {'year': year, 'month': month, 'coverage': 1.0, 'expected': 0, 'actual': 0, 'skip': True}
+        
+        actual_counts = await self.get_actual_counts_by_trade_date(expected_dates[0], expected_dates[-1])
+        actual = sum(1 for d in expected_dates if actual_counts.get(d, 0) > 0)
+        coverage = actual / len(expected_dates) if expected_dates else 0
+        
+        return {
+            'year': year,
+            'month': month,
+            'coverage': coverage,
+            'expected': len(expected_dates),
+            'actual': actual,
+            'skip': coverage >= self.manual_full_min_coverage_ratio
+        }
+    
+    async def _get_missing_trade_dates(self, start_date: str, end_date: str) -> List[str]:
         actual_counts = await self.get_actual_counts_by_trade_date(start_date, end_date)
         target_coverage = await self.get_max_trade_date_coverage(start_date, end_date)
         min_required = math.ceil(target_coverage * self.manual_full_min_coverage_ratio) if target_coverage > 0 else 0
-        need_sync = []
+        
+        trade_dates = await self.get_trade_dates_in_range(start_date, end_date)
+        missing = []
         for trade_date in trade_dates:
             existing = actual_counts.get(trade_date, 0)
             if existing <= 0 or (min_required > 0 and existing < min_required):
-                need_sync.append(trade_date)
+                missing.append(trade_date)
+        return missing
 
-        if not need_sync:
+    async def sync_recent_history(self, start_date: str = None, end_date: str = None):
+        start_date, end_date = self.get_manual_sync_date_range(start_date, end_date)
+        start_year = int(start_date[:4])
+        end_year = int(end_date[:4])
+        
+        self.logger.info(f"stock_factor_pro 手动全量补齐: {start_date} - {end_date}")
+        
+        years_to_sync = []
+        
+        for year in range(end_year, start_year - 1, -1):
+            year_info = await self._get_year_coverage(year)
+            self.logger.info(f"[{year}] 覆盖度: {year_info['actual']}/{year_info['expected']} ({year_info['coverage']*100:.1f}%)")
+            
+            if year_info['skip']:
+                self.logger.info(f"[{year}] 跳过 (≥{self.manual_full_min_coverage_ratio*100:.0f}%)")
+                continue
+            
+            months_to_sync = []
+            
+            for month in range(1, 13):
+                month_info = await self._get_month_coverage(year, month)
+                
+                if month_info['expected'] == 0:
+                    continue
+                
+                if month_info['skip']:
+                    self.logger.info(f"  [{year}-{month:02d}] 跳过 ({month_info['actual']}/{month_info['expected']})")
+                    continue
+                
+                months_to_sync.append(month)
+            
+            if not months_to_sync:
+                continue
+            
+            year_missing = []
+            for month in months_to_sync:
+                if month == 12:
+                    month_start = f"{year}{month:02d}01"
+                    month_end = f"{year + 1}0101"
+                else:
+                    month_start = f"{year}{month:02d}01"
+                    month_end = f"{year}{month + 1:02d}01"
+                
+                missing = await self._get_missing_trade_dates(month_start, month_end)
+                year_missing.extend(missing)
+                if missing:
+                    self.logger.info(f"  [{year}-{month:02d}] 需补: {len(missing)} 天")
+            
+            if year_missing:
+                years_to_sync.append({'year': year, 'missing': year_missing})
+        
+        all_missing = []
+        for y in years_to_sync:
+            all_missing.extend(y['missing'])
+        
+        if not all_missing:
             self.logger.info("stock_factor_pro 近三年无需手动补齐")
             return 0
 
-        self.logger.info(
-            f"stock_factor_pro 手动全量补齐: {start_date} - {end_date}, 待补 {len(need_sync)} 个交易日"
-        )
+        self.logger.info(f"待补: {len(all_missing)} 个交易日")
 
         total_synced = 0
         semaphore = asyncio.Semaphore(1)
-        total_batches = math.ceil(len(need_sync) / self.manual_full_batch_size)
+        total_batches = math.ceil(len(all_missing) / self.manual_full_batch_size)
         processed_batches = 0
 
         async def sync_one_date(trade_date: str):
@@ -321,12 +440,12 @@ class StkFactorProSync(BaseSync):
                 except Exception as e:
                     self.logger.warning(f"{trade_date} 补齐失败: {e}")
 
-        for i in range(0, len(need_sync), self.manual_full_batch_size):
-            batch = need_sync[i:i + self.manual_full_batch_size]
+        for i in range(0, len(all_missing), self.manual_full_batch_size):
+            batch = all_missing[i:i + self.manual_full_batch_size]
             await asyncio.gather(*[sync_one_date(d) for d in batch])
             await self.db.commit()
             processed_batches += 1
-            if i + self.manual_full_batch_size < len(need_sync):
+            if i + self.manual_full_batch_size < len(all_missing):
                 await asyncio.sleep(self.manual_full_batch_sleep)
                 self.logger.info(f"stock_factor_pro 批次进度: {processed_batches}/{total_batches}")
 
